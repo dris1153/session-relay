@@ -1,0 +1,174 @@
+use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
+
+use super::error::{Error, IoContext, Result};
+use super::git_process::GitEnv;
+
+const LOCAL: Duration = Duration::from_secs(60);
+const WORKTREE: Duration = Duration::from_secs(600);
+const NETWORK: Duration = Duration::from_secs(180);
+const PUSH: Duration = Duration::from_secs(600);
+const GC_EVERY: Duration = Duration::from_secs(7 * 24 * 3600);
+
+/// Local clone of the storage repo. Remote history is always one orphan snapshot commit.
+/// Callers must hold `SyncLock` for anything that writes the clone.
+pub struct StoreRepo {
+    dir: PathBuf,
+    remote_url: String,
+    git: GitEnv,
+}
+
+impl StoreRepo {
+    pub fn new(dir: PathBuf, remote_url: String, git: GitEnv) -> Self {
+        Self { dir, remote_url, git }
+    }
+
+    pub fn dir(&self) -> &Path {
+        &self.dir
+    }
+
+    /// `init` + `remote add` instead of `clone`: works for an empty remote (Spike D).
+    pub fn ensure_clone(&self) -> Result<()> {
+        std::fs::create_dir_all(&self.git.hooks_dir).at(&self.git.hooks_dir)?;
+        if !self.dir.join(".git").exists() {
+            std::fs::create_dir_all(&self.dir).at(&self.dir)?;
+            self.git.check(&self.dir, &["init", "-q", "-b", "main"], LOCAL)?;
+            self.git.check(&self.dir, &["remote", "add", "origin", &self.remote_url], LOCAL)?;
+        } else {
+            self.git.check(&self.dir, &["remote", "set-url", "origin", &self.remote_url], LOCAL)?;
+        }
+        Ok(())
+    }
+
+    /// Read-only probe: safe without the lock, never touches the clone.
+    pub fn remote_head(&self) -> Result<Option<String>> {
+        let out = self.git.check(&self.dir, &["ls-remote", "origin", "refs/heads/main"], NETWORK)?;
+        Ok(String::from_utf8_lossy(&out).split_whitespace().next().map(str::to_owned))
+    }
+
+    /// Fetches the current snapshot; None when the remote has no `main` yet.
+    pub fn fetch(&self) -> Result<Option<String>> {
+        if self.remote_head()?.is_none() {
+            return Ok(None);
+        }
+        self.git.check(&self.dir, &["fetch", "-q", "--depth", "1", "--no-tags", "origin", "main"], NETWORK)?;
+        let sha = self.git.check(&self.dir, &["rev-parse", "FETCH_HEAD"], LOCAL)?;
+        Ok(Some(String::from_utf8_lossy(&sha).trim().to_string()))
+    }
+
+    /// None only when the path is absent from the snapshot; any git failure is an error
+    /// (a read failure must never look like "the cloud has nothing here").
+    pub fn show(&self, sha: &str, path: &str) -> Result<Option<Vec<u8>>> {
+        let listed = self.git.check(&self.dir, &["ls-tree", sha, "--", path], LOCAL)?;
+        if listed.is_empty() {
+            return Ok(None);
+        }
+        self.git.check(&self.dir, &["cat-file", "blob", &format!("{sha}:{path}")], LOCAL).map(Some)
+    }
+
+    pub fn list_dirs(&self, sha: &str, dir: &str) -> Result<Vec<String>> {
+        let out = self.git.check(&self.dir, &["ls-tree", "--name-only", sha, &format!("{dir}/")], LOCAL)?;
+        Ok(String::from_utf8_lossy(&out).lines().filter_map(|l| l.rsplit('/').next()).map(str::to_owned).collect())
+    }
+
+    /// Makes the worktree exactly the snapshot (or empty), materializing only `sparse` paths:
+    /// other projects stay in the index, so the next commit keeps them without a disk copy.
+    pub fn prepare_worktree(&self, sha: Option<&str>, sparse: &[String]) -> Result<()> {
+        let mut set = vec!["sparse-checkout", "set", "--no-cone"];
+        set.extend(sparse.iter().map(String::as_str));
+        self.git.check(&self.dir, &set, WORKTREE)?;
+        match sha {
+            Some(sha) => self.git.check(&self.dir, &["reset", "-q", "--hard", sha], WORKTREE)?,
+            None => self.git.check(&self.dir, &["read-tree", "--empty"], LOCAL)?,
+        };
+        self.git.check(&self.dir, &["clean", "-q", "-ffdx"], WORKTREE)?;
+        Ok(())
+    }
+
+    /// Orphan commit of the index (no parent keeps the remote at one snapshot).
+    pub fn snapshot_commit(&self) -> Result<String> {
+        self.git.check(&self.dir, &["add", "-A"], WORKTREE)?;
+        let tree = self.git.check(&self.dir, &["write-tree"], WORKTREE)?;
+        let tree = String::from_utf8_lossy(&tree).trim().to_string();
+        // Generic message: the plaintext commit must not reveal machine names.
+        let commit = self.git.check(&self.dir, &["commit-tree", &tree, "-m", "snapshot"], LOCAL)?;
+        Ok(String::from_utf8_lossy(&commit).trim().to_string())
+    }
+
+    /// Entries (`mode type sha<TAB>name`) directly under `dir` ("" = root) of a snapshot.
+    pub fn ls_tree(&self, rev: &str, dir: &str) -> Result<Vec<String>> {
+        let spec = if dir.is_empty() { rev.to_string() } else { format!("{rev}:{dir}") };
+        let out = self.git.check(&self.dir, &["ls-tree", &spec], LOCAL)?;
+        Ok(String::from_utf8_lossy(&out).lines().map(str::to_owned).collect())
+    }
+
+    /// Drops the clone and starts over; safe because it is only a cache of the remote.
+    pub fn rebuild(&self) -> Result<()> {
+        if self.dir.exists() {
+            std::fs::remove_dir_all(&self.dir).at(&self.dir)?;
+        }
+        self.ensure_clone()
+    }
+
+    pub fn tree_paths(&self, commit: &str, dir: &str) -> Result<Vec<String>> {
+        let out = self.git.check(&self.dir, &["ls-tree", "-r", "--name-only", commit, "--", dir], LOCAL)?;
+        Ok(String::from_utf8_lossy(&out).lines().map(str::to_owned).collect())
+    }
+
+    /// Compare-and-swap push: fails with `LeaseRejected` if the remote moved since `expected`.
+    pub fn push_lease(&self, commit: &str, expected: Option<&str>) -> Result<()> {
+        let lease = format!("--force-with-lease=refs/heads/main:{}", expected.unwrap_or(""));
+        let target = format!("{commit}:refs/heads/main");
+        let out = self.git.run(&self.dir, &["push", "--porcelain", &lease, "origin", &target], PUSH)?;
+        let text = format!("{}{}", String::from_utf8_lossy(&out.stdout), out.stderr);
+        if out.status_ok {
+            Ok(())
+        } else if text.contains("stale info") || text.contains("[rejected]") || text.contains("fetch first") {
+            Err(Error::LeaseRejected)
+        } else {
+            Err(Error::Git { args: "push".into(), stderr: out.stderr.trim().to_string() })
+        }
+    }
+
+    /// Git `*.lock` files left by a killed run. Only call while holding `SyncLock`: then no git of ours is alive.
+    pub fn clear_stale_locks(&self) {
+        remove_lock_files(&self.dir.join(".git"), 0);
+    }
+
+    /// Rebuilds a broken clone (it is only a cache) and garbage-collects at most weekly.
+    /// Must run while holding `SyncLock`.
+    pub fn recover(&self) -> Result<()> {
+        self.clear_stale_locks();
+        let git_dir = self.dir.join(".git");
+        if git_dir.exists() && !self.git.run(&self.dir, &["rev-parse", "--git-dir"], LOCAL)?.status_ok {
+            std::fs::remove_dir_all(&self.dir).at(&self.dir)?;
+        }
+        self.ensure_clone()?;
+        let stamp = git_dir.join("session-relay-last-gc");
+        let due = std::fs::metadata(&stamp).and_then(|m| m.modified()).map_or(true, |t| SystemTime::now().duration_since(t).unwrap_or_default() > GC_EVERY);
+        if due {
+            if !self.git.run(&self.dir, &["fsck", "--connectivity-only", "--no-dangling"], PUSH)?.status_ok {
+                std::fs::remove_dir_all(&self.dir).at(&self.dir)?;
+                return self.ensure_clone();
+            }
+            let _ = self.git.run(&self.dir, &["reflog", "expire", "--expire=now", "--all"], LOCAL);
+            let _ = self.git.run(&self.dir, &["gc", "-q", "--prune=now"], PUSH);
+            std::fs::write(&stamp, b"").at(&stamp)?;
+        }
+        Ok(())
+    }
+}
+
+fn remove_lock_files(dir: &Path, depth: usize) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        match entry.file_type() {
+            Ok(t) if t.is_dir() && depth < 6 && entry.file_name() != "objects" => remove_lock_files(&path, depth + 1),
+            Ok(t) if t.is_file() && path.extension().is_some_and(|x| x == "lock") => {
+                let _ = std::fs::remove_file(&path);
+            }
+            _ => {}
+        }
+    }
+}

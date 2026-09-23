@@ -36,7 +36,7 @@ User works mostly in the VS Code extension where `SessionEnd` is rare. `Stop` (e
 main.rs                     "hook-save" | "hook-worker" | "git-credential" | GUI
 hook.rs                     entry + worker (spawn flags from Spike B)
 pending.rs                  marker read/write/sweep
-core/claude_hook_config.rs  install/uninstall/status on <claude_home>/settings.json:
+engine/claude_hook_config.rs  install/uninstall/status on <claude_home>/settings.json:
                             hooks.Stop[] and hooks.SessionEnd[] entry {"hooks":[{"type":"command","command":"C:/…/session-relay.exe","args":["hook-save"],"timeout":10}]}
                             ours = command ends with "session-relay.exe" and args == ["hook-save"]; idempotent; preserve other keys/hooks
                             (serde_json preserve_order); backup settings.json.bak-<ts> before write; refuse on parse error
@@ -44,7 +44,7 @@ core/claude_hook_config.rs  install/uninstall/status on <claude_home>/settings.j
 
 ## Related Code Files
 - Modify: `src-tauri/src/main.rs`, `src-tauri/src/commands.rs` (install_hooks, uninstall_hooks; HookStatus in AppState), `src-tauri/src/tray.rs` (Tự lưu toggle), `src/features/settings/settings-page.tsx`
-- Create: `src-tauri/src/{hook,pending}.rs`, `src-tauri/src/core/claude_hook_config.rs`, `src-tauri/tests/claude_hook_config.rs`
+- Create: `src-tauri/src/{hook,pending}.rs`, `src-tauri/src/engine/claude_hook_config.rs`, `src-tauri/tests/claude_hook_config.rs`
 - Modify: `src/features/onboarding/onboarding-flow.tsx` (final step offers "Bật tự lưu" now that it exists)
 
 ## Implementation Steps

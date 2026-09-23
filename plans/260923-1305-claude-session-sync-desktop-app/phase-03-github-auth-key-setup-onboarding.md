@@ -25,19 +25,19 @@ First-run: git preflight → GitHub App device-flow login → storage repo (user
 - Credential Manager is readable by any same-user process (incl. Claude-run shell commands) → honest threat model in README; Local persistence avoids roaming.
 
 ## Requirements
-- Functional: git preflight (`git --version` ≥ 2.32 else blocking screen with download link); login/logout; token refresh (in `git-credential get` and API client); storage check states per IPC contract; create_key / unlock_key; settings (machine name default `COMPUTERNAME`, workspace roots, claude_home default `CLAUDE_CONFIG_DIR` else `%USERPROFILE%\.claude`, editable).
+- Functional: git preflight (`git --version` ≥ 2.35 else blocking screen with download link); login/logout; token refresh (in `git-credential get` and API client); storage check states per IPC contract; create_key / unlock_key; settings (machine name default `COMPUTERNAME`, workspace roots, claude_home default `CLAUDE_CONFIG_DIR` else `%USERPROFILE%\.claude`, editable).
 - Non-functional: device-flow polling honors `interval` and `slow_down` (+5 s), retries transient network errors and non-JSON (HTML) bodies (seen in Spike C); expired code → restart; every refresh returns a new refresh token → store the rotated one atomically; passphrase zxcvbn score ≥ 3 + confirm + checkbox "Tôi hiểu mất passphrase là mất toàn bộ dữ liệu"; unlock runs scrypt in `spawn_blocking`.
 
 ## Architecture
 ```
-core/secrets.rs      keyring-core + windows-native-keyring-store, modifier persistence=Local (Spike C): "access-token", "refresh-token", "token-expiry", "age-identity"
-core/github_api.rs   reqwest async: device_code(client_id), poll_token, refresh_token, get_user,
+engine/secrets.rs      keyring-core + windows-native-keyring-store, modifier persistence=Local (Spike C): "access-token", "refresh-token", "token-expiry", "age-identity"
+engine/github_api.rs   reqwest async: device_code(client_id), poll_token, refresh_token, get_user,
                      list_installations(), installation_repos(id), get_repo(owner, name)
                      client_id/slug: option_env!("SR_GITHUB_CLIENT_ID"/"SR_GITHUB_APP_SLUG") (build-time; forks set their own)
                      verification_uri must equal https://github.com/login/device before opening
-core/settings.rs     %LOCALAPPDATA%\dev.sessionrelay.desktop\settings.json {repo{owner,name}, machine_name, claude_home,
+engine/settings.rs     %LOCALAPPDATA%\dev.sessionrelay.desktop\settings.json {repo{owner,name}, machine_name, claude_home,
                      workspace_roots[], links{}}; atomic write
-core/key_setup.rs    check_storage(): installation? → repo accessible? → private && owner==login? → marker/empty? →
+engine/key_setup.rs    check_storage(): installation? → repo accessible? → private && owner==login? → marker/empty? →
                      identity.age present? ; create_key / unlock_key
 git_credential.rs    `session-relay.exe git-credential get`: read token (refresh if < 5 min left) → print
                      username=x-access-token / password=<token>; ignore store/erase
@@ -54,7 +54,7 @@ UI src/features/onboarding/
 ```
 
 ## Related Code Files
-- Create: `src-tauri/src/core/{secrets,github_api,settings,key_setup}.rs`, `src-tauri/src/git_credential.rs`, `src-tauri/src/commands.rs`
+- Create: `src-tauri/src/engine/{secrets,github_api,settings,key_setup}.rs`, `src-tauri/src/git_credential.rs`, `src-tauri/src/commands.rs`
 - Create: `src/features/onboarding/*.tsx`, `src/lib/tauri-commands.ts` (typed wrappers mirroring IPC contract), `src/lib/i18n.ts`, `src/locales/{vi,en}.json`
 - Modify: `src-tauri/src/main.rs` (dispatch `git-credential`), `src-tauri/src/lib.rs`, `src-tauri/capabilities/default.json` (**replace** `opener:default` with an `opener:allow-open-url` scope limited to `https://github.com/*` — permissions are additive; `dialog:allow-open`)
 - Create: `docs/setup-github-app.md`

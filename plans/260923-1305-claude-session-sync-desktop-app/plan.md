@@ -1,7 +1,7 @@
 ---
 title: "Session Relay — Claude Code Session Sync (Tauri v2, Windows)"
 description: "Tray + dashboard app that saves/restores Claude Code session data per GitHub project via an encrypted private GitHub repo."
-status: pending
+status: in-progress
 priority: P1
 effort: 17d
 branch: main
@@ -24,7 +24,7 @@ Research: [Tauri v2 Windows](./research/researcher-01-tauri-v2-windows-report.md
 | Phase | Name | Effort | Status |
 |-------|------|--------|--------|
 | 1 | [Feasibility Spikes & Scaffold](./phase-01-feasibility-spikes-and-scaffold.md) | 1.5d | Complete |
-| 2 | [Rust Sync Core](./phase-02-rust-sync-core.md) | 4.5d | Pending |
+| 2 | [Rust Sync Core](./phase-02-rust-sync-core.md) | 4.5d | Complete |
 | 3 | [GitHub App Auth, Key Setup & Onboarding](./phase-03-github-auth-key-setup-onboarding.md) | 2.5d | Pending |
 | 4 | [Dashboard, Linking, Tray & i18n](./phase-04-dashboard-ui-and-tray.md) | 4d | Pending |
 | 5 | [Auto-Save Hooks (Stop + SessionEnd)](./phase-05-session-end-hook-auto-save.md) | 2d | Pending |
@@ -37,7 +37,7 @@ Sequential 1→7. Phase 5 core parts may start after 2.
 tauri 2.11.6 · single-instance 2.4.5 · dialog 2.7.3 · notification 2.4.0 · opener 2.5.5 · age 0.12.1 (`age::encrypt/decrypt`, `x25519::Identity::generate()`, `scrypt::Recipient/Identity`) · keyring-core 1 + windows-native-keyring-store 1.1 (modifier `persistence=Local`, verified) · zstd 0.14.0 · blake3 1.8.7 · reqwest 0.13.5 · zxcvbn 3.1.1 · tauri-plugin-autostart 2.5.1. Stay on Tauri 2.x.
 
 ## Key Dependencies
-- Git for Windows ≥ 2.32 (`GIT_CONFIG_GLOBAL`), Rust ≥ 1.89 (`File::try_lock`), Node 20+, WebView2
+- Git for Windows ≥ 2.35 (`GIT_CONFIG_GLOBAL`, `sparse-checkout set --no-cone`), Rust ≥ 1.89 (`File::try_lock`), Node 20+, WebView2
 - GitHub App registered by user (device flow on, Contents RW + Metadata R, expiring tokens); client_id/slug via build env
 - Claude Code layout: `<claude_home>/projects/<encoded-cwd>/`, registry `<claude_home>/sessions/<pid>.json` (undocumented; guarded)
 

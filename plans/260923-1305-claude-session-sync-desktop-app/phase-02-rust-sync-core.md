@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "Rust Sync Core"
-status: pending
+status: completed
 priority: P1
 effort: "4.5d"
 dependencies: [1]
@@ -13,8 +13,15 @@ dependencies: [1]
 - plan.md §IPC Contract, §Red Team Review (#1–3, 6–13, 15)
 - `reports/spike-results.md` (chunk size, keyring variant, encode rule, path normalization yes/no, git env)
 
+## Implementation Notes (2026-09-23)
+- Module dir is `src-tauri/src/engine/` (not `core/`: that name shadows Rust's `core` crate in macros).
+- Extra modules vs plan: `context` (Engine), `remote` (reads via `git show`), `evaluate`, `transfer`, `overview` (refresh/list/delete), `chunker`, `sync_policy`, `git_process`, `fs_util`, `title`, `path_decode`, `maintenance`, `logging`. `recovery.rs` became `store_repo::recover` + `maintenance::on_startup`.
+- Discovery fallback found on real data: dirs with only `memory/` left (transcripts cleaned up) have no `cwd` → decode the encoded dir name by walking the filesystem; accept only an unambiguous match (`path_decode.rs`). Real data: 23 repos found, 9 correctly without remote, 40 ms.
+- `RemoteDeleted` keeps its base entry (dropping it would make the file `LocalOnly` and re-upload it); base entries with neither local nor cloud file are pruned.
+- Links persisted in `links.json` (`repos`: remote → checkout root, `dirs`: encoded dir → key).
+
 ## Overview
-Pure-Rust module `src-tauri/src/core/` (no Tauri dependency): project mapping, file snapshotting, chunk/encrypt/manifest, isolated git transport, status, one `sync_project` op, backups, crash recovery. Integration-tested against a local bare repo with two simulated machines.
+Pure-Rust module `src-tauri/src/engine/` (no Tauri dependency): project mapping, file snapshotting, chunk/encrypt/manifest, isolated git transport, status, one `sync_project` op, backups, crash recovery. Integration-tested against a local bare repo with two simulated machines.
 
 ## Key Insights
 - Identity of a local session dir comes from a **local map** (links), never re-derived from content of restored files (their `cwd` belongs to another machine).
@@ -109,17 +116,23 @@ Target dir = claude_home/projects/encode_dir(link.local_root + subpath); not lin
 6. Integration: A save → B link+restore (different root, different claude_home) → B append + save → A RemoteAhead → A restore → bytes equal; concurrent A/B save → one LeaseRejected then succeeds; status refresh concurrent with save cannot corrupt (lock); unchanged save = no commit; LocalDeleted not pulled; restore skipped for live session; aborted restore then save does not push that file; rollback detected.
 
 ## Todo List
-- [ ] paths/links/identity/file_set + tests
-- [ ] snapshot/crypto/manifest (+normalize) + tests
-- [ ] store_repo/recovery/lock + tests
-- [ ] live_sessions/state/base/backup + tests
-- [ ] sync.rs + activity
-- [ ] integration suite green (`cargo test`)
+- [x] paths/links/identity/file_set + tests
+- [x] snapshot/crypto/manifest (+normalize) + tests
+- [x] store_repo/recovery/lock + tests
+- [x] live_sessions/state/base/backup + tests
+- [x] sync.rs + activity
+- [x] integration suite green (`cargo test`)
 
 ## Success Criteria
-- [ ] `cargo test` green incl. all integration scenarios above
-- [ ] 180 MB session: save after 1 MB append uploads ≤ 1 chunk + manifest; status of unchanged 1.4 GB tree < 1 s (base quick path)
-- [ ] Token never in argv/env/`.git/config`; no chunk > 50 MB; `.meta.json` roundtrips byte-exact
+- [x] `cargo test` green incl. all integration scenarios above (41 tests; lease-retry loop itself not exercised — no deterministic injection point)
+- [ ] 180 MB session: save after 1 MB append uploads ≤ 1 chunk + manifest (verified at 12 MiB: ≤ 2 new chunk files); status of unchanged 1.4 GB tree < 1 s — **measure in Phase 4 on real data**
+- [x] No chunk > 50 MB (32 MiB hard cap, tested with a 33 MiB line); `.meta.json` roundtrips byte-exact
+- [ ] Token never in argv/env/`.git/config` — **verify in Phase 3** (credential helper does not exist yet)
+
+## Review Log
+- 2026-09-23 code review 6/10 → fixed: C1 whole-file last-writer-wins lost edits without backup (now base-aware, edit-time `modified_at`, loser always backed up, hook skips two-sided edits); H1 transcript pulled without prefix proof; H2 git could walk into a parent repo (GIT_DIR/GIT_WORK_TREE/ceiling); H3 read failure looked like an empty cloud (fail-closed `show`, vanished manifest = rollback); M1–M9, L1–L6, L8, L10–L14. Open: M10 (backups buffer whole file), L7 (long-path hash case), L9 (pushed files read twice).
+- Re-verification (same reviewer, own repro crate): all C/H/M1 repros fixed and fail safe; sparse checkout keeps other projects in every tested path; score 8/10. Follow-ups fixed: N1 corrupt clone rebuilt on the next git failure (`Engine::with_store`, sync retry); N2 per-file pull/push errors skip only that file; N3 ForceLocal republishes cloud-deleted sessions only when explicit or the manifest vanished; pre-push guard `others_unchanged` (other projects byte-identical) removes reliance on per-version sparse behavior; git ≥ 2.35. Open Lows: N4 no in-app reset for corrupt links/base (Phase 4 "Xoá dữ liệu cục bộ"), N6 two git processes per chunk read, N7 lease-retry loop not exercised end to end.
+- Tester found (and I verified) the marker gap: a machine with a different identity could push a parallel encrypted set → store marker `key_check` → `WrongIdentity`.
 
 ## Risk Assessment
 - Undocumented `sessions/*.json` changes → live guard degrades to mtime guard + warning (not silent).

@@ -29,13 +29,13 @@ Speed up linking on new machines (scan workspace roots, one-click clone) and res
 
 ## Architecture
 ```
-core/workspace_scan.rs   scan(roots) → Vec<(KeyHash, remote, PathBuf)> via origin_key_for
-core/git_clone.rs        clone(url, dest) with cancel handle
+engine/workspace_scan.rs   scan(roots) → Vec<(KeyHash, remote, PathBuf)> via origin_key_for
+engine/git_clone.rs        clone(url, dest) with cancel handle
 UI features/dashboard/{link-project-panel,conflict-dialog}.tsx
 ```
 
 ## Related Code Files
-- Create: `src-tauri/src/core/{workspace_scan,git_clone}.rs`, `src/features/dashboard/{link-project-panel,conflict-dialog}.tsx`, `src-tauri/tests/workspace_scan.rs`
+- Create: `src-tauri/src/engine/{workspace_scan,git_clone}.rs`, `src/features/dashboard/{link-project-panel,conflict-dialog}.tsx`, `src-tauri/tests/workspace_scan.rs`
 - Modify: `src-tauri/src/commands.rs`, `src/features/dashboard/project-detail-pane.tsx`
 
 ## Implementation Steps

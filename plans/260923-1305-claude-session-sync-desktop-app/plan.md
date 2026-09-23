@@ -25,7 +25,7 @@ Research: [Tauri v2 Windows](./research/researcher-01-tauri-v2-windows-report.md
 |-------|------|--------|--------|
 | 1 | [Feasibility Spikes & Scaffold](./phase-01-feasibility-spikes-and-scaffold.md) | 1.5d | Complete |
 | 2 | [Rust Sync Core](./phase-02-rust-sync-core.md) | 4.5d | Complete |
-| 3 | [GitHub App Auth, Key Setup & Onboarding](./phase-03-github-auth-key-setup-onboarding.md) | 2.5d | Pending |
+| 3 | [GitHub App Auth, Key Setup & Onboarding](./phase-03-github-auth-key-setup-onboarding.md) | 2.5d | Complete |
 | 4 | [Dashboard, Linking, Tray & i18n](./phase-04-dashboard-ui-and-tray.md) | 4d | Pending |
 | 5 | [Auto-Save Hooks (Stop + SessionEnd)](./phase-05-session-end-hook-auto-save.md) | 2d | Pending |
 | 6 | [Workspace Scan, Clone & Conflicts](./phase-06-workspace-scan-clone-conflicts.md) | 1.5d | Pending |
@@ -44,11 +44,12 @@ tauri 2.11.6 · single-instance 2.4.5 · dialog 2.7.3 · notification 2.4.0 · o
 ## IPC Contract (single source for phases 3–6)
 | Command | Args → Return |
 |---|---|
-| `get_app_state` | → `AppState{user?, repo?, identity_unlocked, machine_name, claude_home, hooks: HookStatus, git_ok}` |
-| `start_login` / `logout` | → `DeviceCode{user_code, verification_uri, expires_in, interval}` / () ; event `auth-changed` |
-| `check_storage` | → `StorageCheck{state: no_installation\|repo_missing\|repo_public\|repo_foreign\|needs_new_key\|needs_unlock\|ready, install_url, create_repo_url}` |
-| `create_key(passphrase)` / `unlock_key(passphrase)` | → () ; strength + wrong-passphrase errors |
-| `save_settings(patch)` | → `AppState` |
+| `get_app_state` | → `AppState{git_version?, git_ok, has_client_id, signed_in, identity_unlocked, repo?, machine_name, claude_home, workspace_roots, language?, autostart}` (Phase 5 adds `hooks`) |
+| `start_login` / `logout` | → `LoginCode{user_code, verification_uri, expires_in}` / () ; event `auth-changed{signed_in, reason?}` |
+| `check_storage` | → `StorageCheck{state: no_installation\|repo_missing\|repo_public\|repo_foreign\|needs_new_key\|needs_unlock\|ready, user{login, avatar_url}, repo?, install_url, create_repo_url}`; REST only, no clone |
+| `passphrase_strength(passphrase)` | → 0–4 (create needs 3+) |
+| `create_key(passphrase)` / `unlock_key(passphrase)` | → () ; re-run the storage check first; errors `weak_passphrase`, `key_exists`, `decrypt_failed`, `wrong_identity` |
+| `save_settings(patch)` | → `AppState`; validates language (`vi`/`en`) and absolute paths |
 | `list_projects` | → `ProjectSummary[]{key_hash, remote, subpath, owner, name, status, local_root?, sessions, last_saved_by?, last_saved_at?, warnings[]}` |
 | `get_project_detail(key_hash)` | → `{summary, sessions: SessionRow[]{rel, title, updated_at, size, state, saved_by?}, activity[]}` |
 | `sync_project(key_hash, mode, files?)` | mode `auto\|force_local\|force_remote` → `SyncReport{pushed[], pulled[], skipped[{rel, reason}]}` |

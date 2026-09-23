@@ -1,7 +1,7 @@
 ---
 phase: 3
 title: "GitHub App Auth, Key Setup & Onboarding"
-status: pending
+status: completed
 priority: P1
 effort: "2.5d"
 dependencies: [2]
@@ -14,6 +14,16 @@ dependencies: [2]
 - GitHub App user tokens: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app
 - Refresh: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens
 - `reports/spike-results.md` Spike C
+
+## Implementation Notes (2026-09-23)
+- Engine modules: `secrets`, `github_api`, `auth` (refresh under `auth.lock`), `settings`, `key_setup` (store-level, tested with a bare repo), `storage_check` (GitHub API + store). Tauri: `app_state`, `app_paths` (identifier test), `login` (poll thread), `git_credential`, `commands/{mod,setup}`.
+- `reqwest` blocking with `native-tls` (schannel) — avoids aws-lc build tooling.
+- Opener allowlist: github.com and git-scm.com (Git download link on the preflight screen).
+- Private/owner re-check runs on every app start (onboarding flow calls `check_storage`); the 24 h re-check while running moves to the Phase 4 watcher.
+- Manual E2E by the user: fresh login → repo `claude-sessions` created → app installed on it → passphrase → ready. `.git/config` of the real clone holds no token. UX fix after feedback: steps stay busy until the next screen replaces them; no second storage round trip after key setup.
+- After review: `check_storage` and `unlock_key` read only the root listing, the marker and `keys/identity.age` through the REST contents API (`?ref=main`, raw media type). A second machine unlocks without downloading the store; the full fetch starts with the Phase 4 dashboard. Only `create_key` uses git, on a store that is empty or holds only scaffolding.
+- Key state is a pure function of `KeyFiles{root, marker, identity}`. Marker plus project data without a key is `repo_foreign`, never re-keyed. The engine refuses to publish into an empty remote (`store_reset`).
+- Tokens are one JSON blob (`github-tokens`) in Credential Manager, written only under `auth.lock` (refresh, sign-in, sign-out).
 
 ## Overview
 First-run: git preflight → GitHub App device-flow login → storage repo (user creates private repo + installs app on it only) → passphrase create/unlock → machine name → workspace roots. Tokens + identity in Credential Manager (Local persistence).
@@ -30,9 +40,9 @@ First-run: git preflight → GitHub App device-flow login → storage repo (user
 
 ## Architecture
 ```
-engine/secrets.rs      keyring-core + windows-native-keyring-store, modifier persistence=Local (Spike C): "access-token", "refresh-token", "token-expiry", "age-identity"
-engine/github_api.rs   reqwest async: device_code(client_id), poll_token, refresh_token, get_user,
-                     list_installations(), installation_repos(id), get_repo(owner, name)
+engine/secrets.rs      keyring-core + windows-native-keyring-store, modifier persistence=Local (Spike C): "github-tokens" (JSON), "age-identity"
+engine/github_api.rs   reqwest blocking: device_code(client_id), poll_token, refresh_token, get_user,
+                     installations(), repo(owner, name), root_names(repo), file(repo, path)
                      client_id/slug: option_env!("SR_GITHUB_CLIENT_ID"/"SR_GITHUB_APP_SLUG") (build-time; forks set their own)
                      verification_uri must equal https://github.com/login/device before opening
 engine/settings.rs     %LOCALAPPDATA%\dev.sessionrelay.desktop\settings.json {repo{owner,name}, machine_name, claude_home,
@@ -71,21 +81,22 @@ UI src/features/onboarding/
 9. Logout: delete tokens + identity; show revoke link.
 
 ## Todo List
-- [ ] GitHub App registration doc + build env vars
-- [ ] github_api (device flow, refresh, installations)
-- [ ] secrets (Local persistence) + git-credential subcommand
-- [ ] settings
-- [ ] key_setup (states, create race, unlock)
-- [ ] periodic private re-check
-- [ ] i18n helper + vi/en locale files
-- [ ] onboarding UI + startup routing
-- [ ] logout + revoke link
+- [x] GitHub App registration doc + build env vars
+- [x] github_api (device flow, refresh, installations)
+- [x] secrets (Local persistence) + git-credential subcommand
+- [x] settings
+- [x] key_setup (states, create race, unlock)
+- [ ] periodic private re-check (on start: done; every 24 h while running → Phase 4 watcher)
+- [x] i18n helper + vi/en locale files
+- [x] onboarding UI + startup routing
+- [x] logout
+- [ ] revoke link in the UI → Phase 4 settings page (docs only for now)
 
 ## Success Criteria
-- [ ] Fresh account: login → create repo link → install app → passphrase → dashboard, < 3 min
-- [ ] Second machine: login → unlock → dashboard; wrong passphrase → error, no crash
-- [ ] Two machines creating key simultaneously → loser lands on unlock, one identity in repo
-- [ ] Token works for storage repo only (API call to another private repo → 404); refresh after 8 h transparent to git
+- [x] Fresh account: login → create repo link → install app → passphrase → ready (user E2E, 2026-09-23)
+- [ ] Second machine: login → unlock → dashboard; wrong passphrase → error, no crash (store level covered by tests/key_setup.rs; real second machine pending)
+- [x] Two machines creating key simultaneously → loser gets KeyExists → unlock, one identity in repo (tests/key_setup.rs)
+- [x] Token scoped to the storage repo (Spike C); refresh without secret (Spike C). [ ] 8 h refresh transparent to git — verify when a token expires during use
 
 ## Risk Assessment
 - `github.com/new` query params unsupported → show manual instructions (name + Private).
@@ -95,3 +106,15 @@ UI src/features/onboarding/
 - Refuse public/foreign repo; periodic re-check.
 - Passphrase never stored; identity cached in Credential Manager (Local); README states same-user processes can read it.
 - Opener allowed only for github.com URLs.
+
+## Review Log (2026-09-23)
+Code review 7/10 (`reports/code-reviewer-260923-phase-03-auth.md`), tester: no bugs (`reports/tester-260923-phase-03-auth.md`). Fixed:
+- H1/H2: onboarding no longer clones or fetches: REST reads only; `create_key` runs `recover()` (stale git locks) under `sync.lock`.
+- M1: sign-in and sign-out take `auth.lock`. M2: 5xx is retried; a refreshed token is used even if storing it fails.
+- M3: git credential refusals map to `auth_rejected`, so they no longer rebuild the clone.
+- M4: polling stops on permanent device-flow errors. M5: the login step remounts per attempt, unknown reasons fall back to error text, and approval shows the loading view.
+- M6: key commands re-run the storage check; the repo is saved only once usable; the engine is dropped on any non-ready state.
+- M7: marker + data without key → `repo_foreign`; publish into an empty remote → `store_reset`. M8: `GET /repos/{login}/{name}` replaces the paginated listing.
+- M10: IPC table and token storage updated; revoke link stays a Phase 4 todo.
+- Lows: helper checks `protocol=https`, single-quoted exe path; unreadable tokens = signed out; broken settings fall back to defaults; settings validated; stale `advance()` results ignored; errors stored as codes (re-render on language switch); unlock uses `current-password`; screen-reader step text and language group label; serif step numerals removed.
+- Deferred: M9 offline start (install the engine from the cached identity, check in the background) → Phase 4. L4 corrupt identity vs wrong passphrase share one message. `LeaseRejected → KeyExists` race stays untested (needs an injected push between fetch and push).

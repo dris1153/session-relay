@@ -42,6 +42,10 @@ dependencies: [3]
 - Progress bar from `sync-progress`; SyncReport skipped reasons shown inline (`session_open` → "Đóng phiên Claude đang mở rồi thử lại").
 - Tray: Mở · Lưu tất cả · Tự lưu (checkable, phase 5) · Thoát; left click shows window; icon attention variant when any project remote_ahead/both/diverged or last hook run failed.
 - Settings page: machine name, claude_home, workspace roots, hooks toggle (phase 5), repo link, logout (+ revoke link), "Xoá dữ liệu cục bộ" (clone/backups/base; confirm), note "Claude tự xoá phiên sau cleanupPeriodDays ngày".
+- From the Phase 3 review:
+  - Offline start (M9): install the engine from the cached identity + `settings.repo`, run `check_storage` in the background, block only on a definitive non-ready state.
+  - First full fetch of a large store: progress + a stall-based timeout instead of the fixed 180 s (onboarding no longer fetches).
+  - `store_reset`, `wrong_identity`, `auth_rejected` from a sync route back to onboarding; 24 h private re-check in the watcher.
 - i18n (helper + files created in phase 3): language setting (default from system locale: vi-* → vi else en); Rust errors `{code, params}` mapped via `errors.<code>` keys; tray menu labels via `tray_labels(lang)` in Rust, rebuilt on language change.
 - Autostart: `tauri-plugin-autostart` with arg `--minimized` (start hidden in tray); enabled at end of onboarding, toggle "Khởi động cùng Windows" in Settings.
 - Non-functional: 50 projects render < 100 ms; focus rings; cursor rule from tokens.

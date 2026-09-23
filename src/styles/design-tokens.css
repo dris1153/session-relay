@@ -1,0 +1,64 @@
+@import "tailwindcss" source("..");
+@import "@fontsource-variable/inter/index.css";
+@import "@fontsource-variable/source-serif-4/index.css";
+
+/* Tokens from DESIGN.md. Anthropic fonts are proprietary, so the documented substitutes are bundled. */
+@theme {
+  --color-bone-parchment: #f8f8f6;
+  --color-paper-white: #ffffff;
+  --color-soft-stone: #efeeeb;
+  --color-carbon-ink: #121212;
+  --color-graphite: #373734;
+  --color-ashen: #7b7974;
+  --color-pebble: #9c9a92;
+  --color-mist: #b7b7b5;
+  --color-chalk: #e7e6e1;
+  --color-obsidian: #000000;
+  --color-clay: #d97757;
+
+  --font-serif: "Source Serif 4 Variable", ui-serif, Georgia, serif;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+
+  --text-caption: 11px;
+  --text-caption--line-height: 1.5;
+  --text-body: 14px;
+  --text-body--line-height: 1.5;
+  --text-heading-sm: 24px;
+  --text-heading-sm--line-height: 1.33;
+  --text-heading: 30px;
+  --text-heading--line-height: 1.2;
+
+  --radius-control: 8px;
+  --radius-card: 16px;
+  --radius-card-elevated: 24px;
+
+  --shadow-soft: rgba(0, 0, 0, 0.04) 0px 4px 20px 0px;
+  --shadow-featured: oklab(0.431435 -0.02915 -0.125723 / 0.1) 0px 4px 24px 0px;
+}
+
+@layer base {
+  html {
+    background: var(--color-bone-parchment);
+  }
+  /* Keep html at 16px so rem-based spacing stays on the 8px grid. */
+  body {
+    background: var(--color-bone-parchment);
+    color: var(--color-carbon-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+  }
+
+  /* Tailwind v4 preflight no longer sets pointer on buttons. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  label:has(> input[type="checkbox"]),
+  label:has(> input[type="radio"]),
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled,
+  select:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}

@@ -32,6 +32,22 @@ pub enum Error {
     NotLinked,
     #[error("the store was created with a different key")]
     WrongIdentity,
+    #[error("the storage repository is empty: it was reset")]
+    StoreReset,
+    #[error("not signed in to GitHub")]
+    NotLoggedIn,
+    #[error("GitHub rejected the credentials: {0}")]
+    Auth(String),
+    #[error("network error: {0}")]
+    Network(String),
+    #[error("credential store error: {0}")]
+    Secrets(String),
+    #[error("passphrase is too weak")]
+    WeakPassphrase,
+    #[error("the store already has a key")]
+    KeyExists,
+    #[error("this build has no GitHub App configured")]
+    NoClientId,
     #[error("invalid data: {0}")]
     Invalid(String),
 }
@@ -52,6 +68,14 @@ impl Error {
             Error::RollbackDetected => "rollback_detected",
             Error::NotLinked => "not_linked",
             Error::WrongIdentity => "wrong_identity",
+            Error::StoreReset => "store_reset",
+            Error::NotLoggedIn => "not_logged_in",
+            Error::Auth(_) => "auth_rejected",
+            Error::Network(_) => "network",
+            Error::Secrets(_) => "secrets",
+            Error::WeakPassphrase => "weak_passphrase",
+            Error::KeyExists => "key_exists",
+            Error::NoClientId => "no_client_id",
             Error::Invalid(_) => "invalid_data",
         }
     }

@@ -1,8 +1,23 @@
+import { Button } from "./components/button";
+import { LanguageSwitch } from "./components/language-switch";
+import { OnboardingCard } from "./components/onboarding-card";
+import { OnboardingFlow } from "./features/onboarding/onboarding-flow";
+import { t } from "./lib/i18n";
+
 export default function App() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-[1200px] flex-col justify-center gap-4 px-16">
-      <h1 className="font-serif text-heading font-normal">Session Relay</h1>
-      <p className="text-ashen">Scaffold ready.</p>
-    </main>
+    <>
+      <LanguageSwitch />
+      <OnboardingFlow
+        ready={(check, signOut) => (
+          // Placeholder until the Phase 4 dashboard.
+          <OnboardingCard step={4} total={4} title={t("ready.title")} lead={t("ready.lead", { owner: check.repo?.owner ?? "", name: check.repo?.name ?? "" })}>
+            <Button variant="secondary" className="self-start" onClick={signOut}>
+              {t("ready.logout")}
+            </Button>
+          </OnboardingCard>
+        )}
+      />
+    </>
   );
 }

@@ -2,6 +2,7 @@
 //! syncs them through an encrypted snapshot repo.
 
 pub mod activity;
+pub mod auth;
 pub mod backup;
 pub mod base;
 mod chunker;
@@ -12,6 +13,8 @@ pub mod evaluate;
 pub mod file_set;
 pub mod fs_util;
 pub mod git_process;
+pub mod github_api;
+pub mod key_setup;
 pub mod links;
 pub mod live_sessions;
 pub mod lock;
@@ -25,8 +28,11 @@ pub mod paths;
 pub mod project_identity;
 mod publish;
 pub mod remote;
+pub mod secrets;
+pub mod settings;
 pub mod snapshot;
 pub mod state;
+pub mod storage_check;
 pub mod store_repo;
 pub mod sync;
 mod sync_policy;

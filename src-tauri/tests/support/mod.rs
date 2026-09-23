@@ -8,11 +8,14 @@ use std::time::Duration;
 
 use age::secrecy::ExposeSecret;
 use session_relay_lib::engine::activity::Source;
-use session_relay_lib::engine::context::Engine;
+use session_relay_lib::engine::context::{marker_bytes, Engine, MARKER_FILE};
 use session_relay_lib::engine::crypto::Keys;
+use session_relay_lib::engine::git_process::GitEnv;
+use session_relay_lib::engine::key_setup::IDENTITY_FILE;
 use session_relay_lib::engine::overview;
 use session_relay_lib::engine::paths::{encode_dir, CoreConfig};
 use session_relay_lib::engine::project_identity::ProjectKey;
+use session_relay_lib::engine::store_repo::StoreRepo;
 use session_relay_lib::engine::sync::{self, Request, SyncMode, SyncReport};
 
 pub const SID: &str = "0dc9e69a-c29f-4595-9d8f-ce29ae1c2504";
@@ -29,6 +32,7 @@ impl Machine {
         let checkout = base.join("work").join("app");
         std::fs::create_dir_all(checkout.join(".git")).unwrap();
         std::fs::write(checkout.join(".git/config"), "[remote \"origin\"]\n\turl = git@github.com:acme/app.git\n").unwrap();
+        seed_store(&base, remote_url, &Keys::parse(identity).unwrap());
         let cfg = CoreConfig { app_dir: base.join("appdata"), claude_home: base.join("claude"), machine_name: name.to_string() };
         let engine = Engine::new(cfg, Keys::parse(identity).unwrap(), remote_url.to_string(), None, true);
         Self { engine, checkout }
@@ -96,6 +100,26 @@ impl Machine {
         let f = std::fs::OpenOptions::new().write(true).open(self.file(rel)).unwrap();
         f.set_modified(std::time::UNIX_EPOCH + Duration::from_secs(secs)).unwrap();
     }
+}
+
+pub fn test_store(base: &Path, remote_url: &str) -> StoreRepo {
+    StoreRepo::new(base.join("store"), remote_url.to_string(), GitEnv { hooks_dir: base.join("hooks-empty"), credential_helper: None, allow_file_protocol: true })
+}
+
+/// What key setup leaves in a new store (the engine refuses to publish into an empty remote).
+/// The first machine of a test seeds it with its own marker.
+fn seed_store(base: &Path, remote_url: &str, keys: &Keys) {
+    let store = test_store(&base.join("seed"), remote_url);
+    store.ensure_clone().unwrap();
+    if store.fetch().unwrap().is_some() {
+        return;
+    }
+    store.prepare_worktree(None, &["/*".to_string()]).unwrap();
+    std::fs::create_dir_all(store.dir().join("keys")).unwrap();
+    std::fs::write(store.dir().join(MARKER_FILE), marker_bytes(keys)).unwrap();
+    std::fs::write(store.dir().join(".gitattributes"), "* -text -diff\n").unwrap();
+    std::fs::write(store.dir().join(IDENTITY_FILE), b"passphrase-wrapped identity").unwrap();
+    store.push_lease(&store.snapshot_commit().unwrap(), None).unwrap();
 }
 
 pub fn bare_remote(root: &Path) -> String {

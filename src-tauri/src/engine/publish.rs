@@ -15,8 +15,11 @@ pub(super) fn sparse_paths(engine: &Engine, key_hash: &str) -> Vec<String> {
 fn others_unchanged(engine: &Engine, key_hash: &str, base: &str, commit: &str) -> Result<()> {
     let repo = &engine.repo;
     let without = |entries: Vec<String>, name: &str| -> Vec<String> { entries.into_iter().filter(|e| !e.ends_with(&format!("	{name}"))).collect() };
-    let root_same = without(repo.ls_tree(base, "")?, "p") == without(repo.ls_tree(commit, "")?, "p");
-    let projects_same = without(repo.ls_tree(base, "p")?, key_hash) == without(repo.ls_tree(commit, "p")?, key_hash);
+    let (base_root, commit_root) = (repo.ls_tree(base, "")?, repo.ls_tree(commit, "")?);
+    // A store that has no project yet has no `p` tree.
+    let projects = |rev: &str, root: &[String]| if root.iter().any(|e| e.ends_with("\tp")) { repo.ls_tree(rev, "p") } else { Ok(Vec::new()) };
+    let projects_same = without(projects(base, &base_root)?, key_hash) == without(projects(commit, &commit_root)?, key_hash);
+    let root_same = without(base_root, "p") == without(commit_root, "p");
     if root_same && projects_same {
         Ok(())
     } else {
@@ -25,11 +28,10 @@ fn others_unchanged(engine: &Engine, key_hash: &str, base: &str, commit: &str) -
 }
 
 pub(super) fn commit_and_push(engine: &Engine, key_hash: &str, manifest: &Manifest, expected: Option<&str>) -> Result<()> {
+    // Key setup always publishes `keys/identity.age` first, so an empty remote was reset: data
+    // pushed now would sit next to no key, unreadable for every other machine.
+    let Some(expected) = expected else { return Err(Error::StoreReset) };
     let root = engine.repo.dir();
-    if !root.join(MARKER_FILE).exists() {
-        write_atomic(&root.join(MARKER_FILE), &engine.marker_bytes())?;
-        write_atomic(&root.join(".gitattributes"), b"* -text -diff\n")?;
-    }
     let project_dir = root.join(engine.project_path(key_hash));
     write_atomic(&project_dir.join("manifest.age"), &manifest.seal(&engine.keys)?)?;
     let referenced: BTreeSet<String> = manifest.files.values().flat_map(|e| e.chunks.iter().map(|c| format!("{}.zst.age", c.name))).collect();
@@ -43,8 +45,6 @@ pub(super) fn commit_and_push(engine: &Engine, key_hash: &str, manifest: &Manife
     if let Some(missing) = referenced.iter().find(|name| !in_tree.contains(&format!("{}/c/{name}", engine.project_path(key_hash)))) {
         return Err(Error::Invalid(format!("chunk {missing} missing from snapshot")));
     }
-    if let Some(base) = expected {
-        others_unchanged(engine, key_hash, base, &commit)?;
-    }
-    engine.repo.push_lease(&commit, expected)
+    others_unchanged(engine, key_hash, expected, &commit)?;
+    engine.repo.push_lease(&commit, Some(expected))
 }

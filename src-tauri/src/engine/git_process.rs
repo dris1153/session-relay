@@ -109,8 +109,19 @@ impl GitEnv {
         if out.status_ok {
             Ok(out.stdout)
         } else {
-            Err(Error::Git { args: args.join(" "), stderr: out.stderr.trim().to_string() })
+            Err(failure(&args.join(" "), &out.stderr))
         }
+    }
+}
+
+/// A refused credential (signed out, grant revoked) is not a broken clone: it must reach the
+/// user as "sign in again" and must never trigger a clone rebuild.
+pub fn failure(args: &str, stderr: &str) -> Error {
+    let stderr = stderr.trim().to_string();
+    if ["could not read Username", "Authentication failed", "returned error: 401"].iter().any(|s| stderr.contains(s)) {
+        Error::Auth(stderr)
+    } else {
+        Error::Git { args: args.into(), stderr }
     }
 }
 
@@ -122,4 +133,17 @@ fn kill_tree(pid: u32) {
         .stderr(Stdio::null())
         .creation_flags(CREATE_NO_WINDOW)
         .status();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refused_credentials_are_auth_errors_not_broken_clones() {
+        let refused = "fatal: could not read Username for 'https://github.com': terminal prompts disabled";
+        assert!(matches!(failure("fetch", refused), Error::Auth(_)));
+        assert!(matches!(failure("fetch", "fatal: Authentication failed for 'https://github.com/me/s.git/'"), Error::Auth(_)));
+        assert!(matches!(failure("fetch", "fatal: bad object HEAD"), Error::Git { .. }));
+    }
 }

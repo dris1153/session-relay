@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use super::error::{Error, IoContext, Result};
-use super::git_process::GitEnv;
+use super::git_process::{failure, GitEnv};
 
 const LOCAL: Duration = Duration::from_secs(60);
 const WORKTREE: Duration = Duration::from_secs(600);
@@ -126,7 +126,7 @@ impl StoreRepo {
         } else if text.contains("stale info") || text.contains("[rejected]") || text.contains("fetch first") {
             Err(Error::LeaseRejected)
         } else {
-            Err(Error::Git { args: "push".into(), stderr: out.stderr.trim().to_string() })
+            Err(failure("push", &out.stderr))
         }
     }
 

@@ -10,6 +10,13 @@ use super::store_repo::StoreRepo;
 pub const MARKER_FILE: &str = "session-relay.json";
 const KEY_CHECK: &[u8] = b"session-relay key check";
 
+/// Plaintext store marker. `key_check` lets a machine detect a different identity before it
+/// writes a second, unreadable set of projects into the same repo.
+pub fn marker_bytes(keys: &Keys) -> Vec<u8> {
+    let marker = serde_json::json!({ "app": "session-relay", "v": 1, "key_check": keys.mac(KEY_CHECK) });
+    serde_json::to_vec_pretty(&marker).expect("serializable")
+}
+
 /// Everything an engine operation needs; built once per process after unlock.
 pub struct Engine {
     pub cfg: CoreConfig,
@@ -34,13 +41,6 @@ impl Engine {
 
     pub fn manifest_path(&self, key_hash: &str) -> String {
         format!("p/{key_hash}/manifest.age")
-    }
-
-    /// Plaintext store marker. `key_check` lets a machine detect a different identity before it
-    /// writes a second, unreadable set of projects into the same repo.
-    pub fn marker_bytes(&self) -> Vec<u8> {
-        let marker = serde_json::json!({ "app": "session-relay", "v": 1, "key_check": self.keys.mac(KEY_CHECK) });
-        serde_json::to_vec_pretty(&marker).expect("serializable")
     }
 
     pub fn check_identity(&self, sha: Option<&str>) -> Result<()> {

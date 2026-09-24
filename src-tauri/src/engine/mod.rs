@@ -44,5 +44,6 @@ pub mod store_repo;
 pub mod sync;
 mod sync_policy;
 pub mod title;
+pub mod transcript;
 pub mod transfer;
 pub mod workspace_scan;

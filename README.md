@@ -20,15 +20,15 @@ Claude Code keeps each project's sessions in `~/.claude/projects/<encoded-cwd>/`
 - Windows 10 or 11
 - [Git for Windows](https://git-scm.com/download/win) 2.35 or newer
 - A GitHub account and **your own GitHub App** (device flow, no secret) — see [docs/setup-github-app.md](docs/setup-github-app.md)
-- To build: Node 20+, Rust 1.89+ (with the MSVC toolchain), WebView2 (preinstalled on Windows 11)
+- To build: Node 20+ with pnpm, Rust 1.89+ (with the MSVC toolchain), WebView2 (preinstalled on Windows 11)
 
 ## Build
 
 ```bash
 cp .env.example .env        # fill in SR_GITHUB_CLIENT_ID and SR_GITHUB_APP_SLUG
-npm install
-npm run tauri dev           # development
-npx tauri build             # NSIS installer in src-tauri/target/release/bundle/nsis/
+pnpm install
+pnpm tauri dev              # development
+pnpm tauri build            # NSIS installer in src-tauri/target/release/bundle/nsis/
 ```
 
 Both `.env` values are public identifiers of your GitHub App; forks register their own app. The installer is not code-signed, so SmartScreen will warn. It installs per user into `%LOCALAPPDATA%\session-relay`.

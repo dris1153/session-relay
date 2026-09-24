@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Button } from "../../components/button";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { pickFolder } from "../../components/folder-fields";
 import { ErrorNote } from "../../components/onboarding-card";
 import { errorText, t, useLanguage } from "../../lib/i18n";
+import { resumeCommand, sessionSide } from "../../lib/sessions";
 import { needsAttention, STATUS } from "../../lib/status-copy";
 import { api, errorCode, type ProjectView, type SyncMode, type SyncReport, type User } from "../../lib/tauri-commands";
 import { useDashboard } from "../../lib/use-dashboard";
 import { useWorkspaceScan } from "../../lib/use-workspace-scan";
+import type { ViewedSession } from "../session-viewer/session-viewer";
 import { SettingsPage } from "../settings/settings-page";
 import { ConflictDialog } from "./conflict-dialog";
 import { DashboardHeader } from "./dashboard-header";
@@ -15,6 +17,9 @@ import { LinkProjectPanel } from "./link-project-panel";
 import { ProjectDetailPane, type DetailActions } from "./project-detail-pane";
 import { DetailSkeleton } from "./loading-skeleton";
 import { ProjectSidebar } from "./project-sidebar";
+
+// Markdown rendering is the heaviest dependency: load it with the first opened session, not at startup.
+const SessionViewer = lazy(() => import("../session-viewer/session-viewer").then((m) => ({ default: m.SessionViewer })));
 
 type Confirm = { title: string; body: string; confirm: string; action: () => void };
 
@@ -30,6 +35,7 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
   // Key hashes: the dialog and the cancel button belong to one project.
   const [resolving, setResolving] = useState<string | null>(null);
   const [cloning, setCloning] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<ViewedSession | null>(null);
   const projects = data?.projects ?? [];
   const project = projects.find((p) => p.key_hash === selected) ?? projects.find((p) => needsAttention(p.status)) ?? projects[0] ?? null;
   // Pin the default pick, so the pane does not jump once this project stops needing attention.
@@ -84,6 +90,7 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
   const actions = (p: ProjectView): DetailActions => ({
     primary: () => primary(p),
     force: (mode) => setConfirm({ title: t(`confirm.${mode}_title`), body: t(`confirm.${mode}_body`), confirm: t(`project.${mode}`), action: () => sync(p, mode) }),
+    openSession: (row) => setViewing({ keyHash: p.key_hash, sessionId: row.id, side: sessionSide(row.transcript ?? row.state) }),
     restoreSession: (row) => sync(p, "auto", row.files),
     deleteSession: (row) =>
       setConfirm({
@@ -124,6 +131,7 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
           selected={project?.key_hash ?? null}
           onSelect={(keyHash) => {
             setSelected(keyHash);
+            setViewing(null);
             setPage("projects");
           }}
           user={user}
@@ -131,6 +139,10 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
         />
         {page === "settings" ? (
           <SettingsPage onSignOut={onSignOut} />
+        ) : viewing && viewing.keyHash === project?.key_hash ? (
+          <Suspense fallback={<DetailSkeleton />}>
+            <SessionViewer key={`${viewing.keyHash}:${viewing.sessionId}:${viewing.side}`} session={viewing} onBack={() => setViewing(null)} />
+          </Suspense>
         ) : project ? (
           <ProjectDetailPane project={project} autoSaveError={data?.auto_save_failures.find(([key]) => key === project.key_hash)?.[1] ?? null} busy={busy !== null} running={busy === project.key_hash} report={reports[project.key_hash] ?? null} actions={actions(project)} activityVersion={activityVersion}>
             {project.status === "not_linked" && (
@@ -182,10 +194,4 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
       />
     </div>
   );
-}
-
-/** For PowerShell, the VS Code default on Windows: single quotes keep `$` and backticks literal. */
-function resumeCommand(root: string, subpath: string): string {
-  const folder = [root, ...subpath.split("/").filter(Boolean)].join("\\");
-  return `cd '${folder.replace(/'/g, "''")}'; claude --resume`;
 }

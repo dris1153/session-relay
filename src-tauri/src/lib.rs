@@ -11,6 +11,7 @@ pub mod hook_worker;
 pub mod login;
 pub mod pending;
 mod tray;
+mod transcript_cache;
 mod watcher;
 
 use std::sync::Arc;
@@ -70,6 +71,8 @@ pub fn run() {
             commands::workspace::scan_workspaces,
             commands::workspace::clone_project,
             commands::workspace::cancel_clone,
+            commands::session_view::open_session,
+            commands::session_view::session_detail,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -40,6 +40,8 @@ pub enum Error {
     Cancelled,
     #[error("the clone destination already exists")]
     DestinationExists,
+    #[error("session not found")]
+    SessionNotFound,
     #[error("not signed in to GitHub")]
     NotLoggedIn,
     #[error("GitHub rejected the credentials: {0}")]
@@ -78,6 +80,7 @@ impl Error {
             Error::Clone(_) => "clone_failed",
             Error::Cancelled => "cancelled",
             Error::DestinationExists => "destination_exists",
+            Error::SessionNotFound => "session_not_found",
             Error::NotLoggedIn => "not_logged_in",
             Error::Auth(_) => "auth_rejected",
             Error::Network(_) => "network",

@@ -18,7 +18,7 @@ Target of the first release (v0.1.0): Windows, one GitHub account, save and rest
 ## Phase 7 remaining
 
 - [x] Claude Code version notice (tested 2.1.278–2.1.280; a newer minor gets a non-blocking notice in Settings)
-- [x] Installer (`npx tauri build`, NSIS with the pre-uninstall hook) and `SHA256SUMS.txt`
+- [x] Installer (`pnpm tauri build`, NSIS with the pre-uninstall hook) and `SHA256SUMS.txt`
 - [ ] Install / uninstall check (hooks removed, app data kept)
 - [ ] Two-machine E2E checklist, including the Phase 5 manual checks (`claude -p`, VS Code, worker surviving the terminal)
 

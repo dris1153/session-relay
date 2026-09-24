@@ -32,7 +32,7 @@ The conventions this codebase actually follows. Principles: YAGNI, KISS, DRY.
 
 ## TypeScript / React
 
-- `tsc` strict mode (`noUnusedLocals`, `noUnusedParameters`); `npm run build` runs `tsc` then Vite.
+- `tsc` strict mode (`noUnusedLocals`, `noUnusedParameters`); `pnpm build` runs `tsc` then Vite. The package manager is pnpm (`pnpm-lock.yaml`); do not mix in npm.
 - Commands are called through `src/lib/tauri-commands.ts` only; errors become codes via `errorCode()`.
 - One user action at a time through `useDashboard().run(label, action)`; progress comes from the `sync-progress` event.
 - Styling: Tailwind v4 with the tokens in `src/styles/design-tokens.css` (from `DESIGN.md`): monochrome, Clay only as an accent, serif for headings only, `cursor: pointer` on every interactive element (global rule), `motion-reduce` respected.
@@ -61,8 +61,8 @@ cd src-tauri
 cargo clippy --all-targets -- -D warnings
 cargo test
 cd ..
-npx tsc --noEmit -p .
-npm run build
+pnpm exec tsc --noEmit -p .
+pnpm build
 ```
 
 There is no CI yet; run these locally.

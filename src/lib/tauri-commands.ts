@@ -99,6 +99,31 @@ export type Progress =
 
 export type SyncMode = "auto" | "force_local" | "force_remote";
 
+export type Side = "local" | "cloud";
+export type Usage = { input: number; output: number; cache_read: number; cache_creation: number };
+export type Block =
+  | { type: "text"; text: string }
+  | { type: "thinking"; text: string | null }
+  | { type: "tool"; id: string; name: string; summary: string; input: string; input_truncated: boolean; output: string | null; output_truncated: boolean; is_error: boolean };
+export type Item =
+  | { kind: "user"; uuid: string; at: string | null; text: string; images: number }
+  | { kind: "assistant"; uuid: string; at: string | null; model: string | null; usage: Usage | null; blocks: Block[] }
+  | { kind: "event"; uuid: string | null; at: string | null; event: string; noisy: boolean; text: string };
+export type SessionMeta = {
+  title: string | null;
+  models: string[];
+  version: string | null;
+  git_branch: string | null;
+  cwd: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  usage: Usage;
+  prompts: number;
+  tool_calls: number;
+  off_branch: number;
+};
+export type SessionView = { key_hash: string; session_id: string; side: Side; meta: SessionMeta; items: Item[] };
+
 export type SettingsPatch = Partial<Pick<AppState, "machine_name" | "claude_home" | "workspace_roots" | "language" | "autostart">>;
 
 type CommandError = { code: string; detail: string };
@@ -130,4 +155,6 @@ export const api = {
   scanWorkspaces: () => invoke<Checkout[]>("scan_workspaces"),
   cloneProject: (keyHash: string, root: string) => invoke<string>("clone_project", { keyHash, root }),
   cancelClone: () => invoke<void>("cancel_clone"),
+  openSession: (keyHash: string, sessionId: string, side: Side) => invoke<SessionView>("open_session", { keyHash, sessionId, side }),
+  sessionDetail: (keyHash: string, sessionId: string, side: Side, reference: string) => invoke<string>("session_detail", { keyHash, sessionId, side, reference }),
 };

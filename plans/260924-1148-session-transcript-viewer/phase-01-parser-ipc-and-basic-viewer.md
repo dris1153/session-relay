@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "Parser, IPC and basic viewer"
-status: pending
+status: completed
 priority: P2
 effort: "1.5d"
 dependencies: []
@@ -12,6 +12,13 @@ dependencies: []
 ## Context Links
 - [plan.md](./plan.md) · [brainstorm report](../reports/brainstorm-260924-1148-session-transcript-viewer.md)
 - Code: `src-tauri/src/engine/remote.rs` (`manifest`, `file_content`), `engine/normalize.rs` (`PathRewrite`), `engine/links.rs` (`dir_for`), `engine/title.rs`, `src/lib/sessions.ts`, `src/features/dashboard/{session-list,project-detail-pane,dashboard-page}.tsx`
+
+## Implementation Notes (2026-09-24)
+- Engine: `engine/transcript/{mod,records,branch,items,source}.rs`; cache `src/transcript_cache.rs` (2 entries); commands `commands/session_view.rs`. The cache lives in `AppState.transcripts`.
+- Additions beyond the plan: IDE context blocks (`<ide_opened_file>`, `<ide_selection>`) and system-tag prompts (`<task-notification>`, `<local-command-*>`, `<system-reminder>`) become hidden events; slash commands show as `/name args`; turns holding only signature-only thinking are hidden unless system events are shown; conversation records without a uuid are kept (cannot be placed on a branch).
+- `error: transcript_unreadable` dropped: the parser never fails, an unreadable file maps to `io`.
+- Frontend: `features/session-viewer/{session-viewer,message-item,tool-block,markdown-text}.tsx`, `lib/use-session-view.ts`; the viewer chunk is lazy-loaded (main bundle stays ~90 KB gzip, viewer chunk 48 KB gzip).
+- Measured (release, this machine): parse of the 24 MB transcript 72 ms, view JSON 3.3 MB; opening an 18 MB session from a click to first paint 584 ms (646 visible items); scroll step 7 ms with `content-visibility: auto`.
 
 ## Overview
 Rust parser for the current branch of a session, `open_session` / `session_detail`, and a viewer showing user and Claude messages (markdown), tool calls paired with their results, per-turn metadata and a noise toggle. Works for the local file and for the cloud copy.
@@ -75,14 +82,14 @@ UI `src/features/session-viewer/`:
 9. clippy, cargo test, tsc, build; code review.
 
 ## Todo List
-- [ ] fixtures
-- [ ] parser (records, branch, items) + tests
-- [ ] view model + details
-- [ ] local and cloud sources
-- [ ] cache + commands
-- [ ] viewer UI + markdown + tool blocks
-- [ ] locales
-- [ ] measurements recorded here
+- [x] fixtures
+- [x] parser (records, branch, items) + tests
+- [x] view model + details
+- [x] local and cloud sources
+- [x] cache + commands
+- [x] viewer UI + markdown + tool blocks
+- [x] locales
+- [x] measurements recorded here
 
 ## Success Criteria
 - [ ] All fixture tests pass; malformed input never errors
@@ -100,3 +107,16 @@ UI `src/features/session-viewer/`:
 - Transcript text is untrusted (web fetch output, tool output): no raw HTML, no `dangerouslySetInnerHTML`; links never navigate the webview, only `openUrl` for http/https/mailto after a click.
 - Remote images blocked by CSP already; markdown images rendered as links.
 - Cloud chunks are verified (`remote::chunk` checks name/len); nothing decrypted is written to disk.
+
+## Review Log (2026-09-24)
+Report: [code-reviewer-260924-phase-01-parser-viewer.md](./reports/code-reviewer-260924-phase-01-parser-viewer.md) · 7/10, 0 critical, 2 high, 5 medium, 10 low.
+
+Checked on the 6 largest real transcripts (86–173 MB, read only) before fixing: every tool_result is parented to the record of its own call (`sourceToolAssistantUUID`), so the strict parent walk dropped results (up to 56 per file) and whole parallel calls, and API-error retries and resume re-appends (same uuid written twice, up to 1 244 per file) left up to 787 real turns off the walked path. No real file contained a prompt rewind.
+
+Fixed:
+- H1 + M1 + M2 (design change): the walk now only finds the current branch; what is hidden is decided by rewinds alone: a typed prompt off that branch and everything under it. All other records show in file order, deduplicated by uuid. The leaf is the newest turn by timestamp (a re-appended old record at the end cannot make recent prompts look rewound); a dangling parent falls back to the previous turn. Result on the real files: 0 tools without a result, 0 hidden turns, tool calls shown 3 743 → 3 910 on the largest.
+- H2: opener scope `https://*`, `http://*`, `mailto:*`; failures logged, not swallowed.
+- M3 command prettifying only when the prompt starts with the command tags; M4 transcript cache cleared with the engine, `session_detail` requires the engine; M5 items keyed by their index in the full list, the viewer keyed by session.
+- L1 the side follows `<sid>.jsonl`'s own state; L2 signature before reading (local metadata, cloud manifest hash + expansion dir), unchanged content is not read or decrypted again; L3 event text capped at the preview size; L4 `api_error` text from `error.formatted`/`message` + retry count, queued prompts as arrays, `<bash-stdout>`/`<bash-stderr>` as notifications, "[Request interrupted by user]" as an event; L5 relative links as plain text, `pre > code` unstyled; L6 retry after an open error, "Show all" errors shown; L7 disclosure chevron, focus on Back, arrow `aria-hidden`; L8 formatters cached per language; L9 the most complete usage record of a message counts; L10 fixture `parallel.jsonl` (parallel calls, torn line, trailing parentless system record, quoted command tags, api_error, interruption, re-appended record).
+
+Measured after the fixes (release): 173 MB → 19 155 items, parse 339 ms, view JSON 13 MB; 24 MB → 80 ms, 3.6 MB.

@@ -120,6 +120,10 @@ GUI: markers older than 15 min are finished by the watcher (with backoff); Quit 
 
 Hooks are registered in `<claude_home>/settings.json` (both events, one group each, backups kept, malformed files never written); the switch reads that file as the source of truth. The NSIS pre-uninstall hook runs `hook-uninstall`.
 
+## Session viewer
+
+`engine/transcript` parses a `<sid>.jsonl` (the local file, or the cloud copy decrypted in memory under `sync.lock` and expanded to this machine's paths; nothing is written). Records are shown in file order, deduplicated by uuid; assistant records of one API message are merged, tool results are paired to their call by id. The parent chain is only used to find the current branch: a typed prompt off that branch (a rewind) and everything under it is hidden. System records (hooks, reminders, IDE context, injected skill text) are marked `noisy`. The last two parsed sessions stay in memory (`TranscriptCache`, cleared with the engine) so details and reopening an unchanged file are instant.
+
 ## IPC contract
 
 | Command | Returns |
@@ -137,6 +141,7 @@ Hooks are registered in `<claude_home>/settings.json` (both events, one group ea
 | `link_project(key_hash, local_root, force)` | `{ origin_matches, found_remote? }` |
 | `delete_remote_session(key_hash, session_id)` · `open_project_folder(key_hash)` · `clear_local_data` | () |
 | `scan_workspaces` · `clone_project(key_hash, root)` · `cancel_clone` | `Checkout { remote, path }[]` · destination path · () |
+| `open_session(key_hash, session_id, side: local\|cloud)` · `session_detail(…, reference)` | `SessionView { meta, items }` (tool input/output cut to 2 KB / 8 KB previews) · full text of `in:<tool id>` / `out:<tool id>` |
 
 `ProjectView { key_hash, remote, owner, name, subpath, status, local_root?, files: FileRow[], unreadable }`; `FileRow { rel, state, conflict, title?, size?, saved_by?, saved_at?, local_size?, local_modified? }`.
 

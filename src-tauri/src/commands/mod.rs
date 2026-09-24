@@ -1,4 +1,5 @@
 pub mod dashboard;
+pub mod session_view;
 pub mod settings;
 pub mod setup;
 pub mod workspace;

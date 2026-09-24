@@ -11,6 +11,7 @@ import { SessionList } from "./session-list";
 export type DetailActions = {
   primary: () => void;
   force: (mode: "force_local" | "force_remote") => void;
+  openSession: (row: SessionRow) => void;
   restoreSession: (row: SessionRow) => void;
   deleteSession: (row: SessionRow) => void;
   openFolder: () => void;
@@ -77,7 +78,7 @@ export function ProjectDetailPane({ project, autoSaveError, busy, running, repor
       {children}
       <section className="flex flex-col gap-3">
         <h2 className="text-caption font-medium uppercase tracking-wide text-pebble">{t("sessions.title")}</h2>
-        <SessionList sessions={groupSessions(project.files)} disabled={busy} onRestore={actions.restoreSession} onDelete={actions.deleteSession} />
+        <SessionList sessions={groupSessions(project.files)} disabled={busy} onOpen={actions.openSession} onRestore={actions.restoreSession} onDelete={actions.deleteSession} />
       </section>
       <section className="flex flex-col gap-3">
         <h2 className="text-caption font-medium uppercase tracking-wide text-pebble">{t("activity.title")}</h2>

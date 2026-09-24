@@ -1,8 +1,13 @@
 # Changelog
 
-Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Nothing has been released yet.
+Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased (v0.1.0)
+## Unreleased (v0.2.0)
+
+### Added
+- Session viewer: click a session to read its conversation (prompts, Claude's replies as Markdown, tool calls with their results, per-turn model and tokens, compactions and API errors), from this machine's file or straight from the cloud copy without restoring it. System events are hidden behind a switch; rewound prompts are left out.
+
+## [0.1.0] — 2026-09-24
 
 ### Added
 - Sync core: per-project manifests, line-aligned chunking of transcripts (≈4 MiB), zstd + age encryption, keyed names, one orphan snapshot commit pushed with `--force-with-lease`, three-way state per file, encrypted backups of anything overwritten, rollback detection, path rewriting between machines.

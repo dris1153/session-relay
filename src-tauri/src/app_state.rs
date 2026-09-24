@@ -15,6 +15,7 @@ use crate::engine::paths::CoreConfig;
 use crate::engine::secrets;
 use crate::engine::settings::{RepoRef, Settings};
 use crate::engine::store_repo::StoreRepo;
+use crate::transcript_cache::TranscriptCache;
 
 /// Process-wide state behind every command. The engine exists only once the key is unlocked.
 pub struct AppState {
@@ -26,6 +27,7 @@ pub struct AppState {
     pub dashboard: Mutex<DashboardCache>,
     /// Set in `setup`; lets the engine report progress to the window.
     pub app: OnceLock<AppHandle>,
+    pub transcripts: TranscriptCache,
 }
 
 impl AppState {
@@ -36,7 +38,7 @@ impl AppState {
             log::error!("cannot load settings, using defaults: {e}");
             Settings::defaults()
         });
-        Self { app_dir, settings: Mutex::new(settings), engine: Mutex::new(None), login_attempt: AtomicU64::new(0), dashboard: Mutex::default(), app: OnceLock::new() }
+        Self { app_dir, settings: Mutex::new(settings), engine: Mutex::new(None), login_attempt: AtomicU64::new(0), dashboard: Mutex::default(), app: OnceLock::new(), transcripts: TranscriptCache::default() }
     }
 
     pub fn settings(&self) -> Settings {
@@ -68,6 +70,7 @@ impl AppState {
                 let _ = app.emit("sync-progress", p);
             });
         }
+        self.transcripts.clear();
         let mut cache = crate::dashboard::cache(self);
         let generation = cache.generation + 1;
         *cache = crate::dashboard::DashboardCache { generation, ..Default::default() };
@@ -90,6 +93,7 @@ impl AppState {
 
     pub fn drop_engine(&self) {
         *self.engine.lock().expect("engine lock") = None;
+        self.transcripts.clear();
     }
 }
 

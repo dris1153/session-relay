@@ -3,6 +3,7 @@ name = "session-relay"
 version = "0.2.0"
 description = "Sync Claude Code session data across machines via an encrypted private GitHub repo (unofficial)"
 authors = ["session-relay contributors"]
+license = "MIT"
 edition = "2021"
 rust-version = "1.89"
 

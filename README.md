@@ -1,5 +1,12 @@
 # Session Relay
 
+[![Latest release](https://img.shields.io/github/v/release/dris1153/session-relay)](https://github.com/dris1153/session-relay/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/dris1153/session-relay/total)](https://github.com/dris1153/session-relay/releases)
+[![License: MIT](https://img.shields.io/github/license/dris1153/session-relay)](LICENSE)
+[![Platform: Windows 10 | 11](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6)](#requirements)
+[![Built with Tauri 2](https://img.shields.io/badge/built%20with-Tauri%202-24C8DB?logo=tauri&logoColor=white)](https://tauri.app)
+[![Rust 1.89+](https://img.shields.io/badge/Rust-1.89%2B-000000?logo=rust)](https://www.rust-lang.org)
+
 A Windows desktop app that syncs your Claude Code sessions between machines, per GitHub project, through an encrypted private GitHub repository you own.
 
 > **Unofficial.** Session Relay is not affiliated with or endorsed by Anthropic. It reads and writes Claude Code's local files (`~/.claude/projects/…`, and `~/.claude/settings.json` when auto-save is on), whose format is undocumented and may change.
@@ -96,4 +103,4 @@ Claude reads hooks when a session starts: open a new session (or reload the VS C
 
 ## License
 
-Not chosen yet.
+[MIT](LICENSE) © 2026 dris1153

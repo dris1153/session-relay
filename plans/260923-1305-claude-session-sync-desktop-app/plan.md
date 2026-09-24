@@ -26,7 +26,8 @@ Research: [Tauri v2 Windows](./research/researcher-01-tauri-v2-windows-report.md
 | 1 | [Feasibility Spikes & Scaffold](./phase-01-feasibility-spikes-and-scaffold.md) | 1.5d | Complete |
 | 2 | [Rust Sync Core](./phase-02-rust-sync-core.md) | 4.5d | Complete |
 | 3 | [GitHub App Auth, Key Setup & Onboarding](./phase-03-github-auth-key-setup-onboarding.md) | 2.5d | Complete |
-| 4 | [Dashboard, Linking, Tray & i18n](./phase-04-dashboard-ui-and-tray.md) | 4d | Pending |
+| 4 | [Dashboard, Linking, Tray & i18n](./phase-04-dashboard-ui-and-tray.md) | 4d | Complete |
+| 4b | [Dashboard Loading Speed & Skeleton UI](./phase-04b-dashboard-loading-speed-and-skeleton.md) | 1d | Pending |
 | 5 | [Auto-Save Hooks (Stop + SessionEnd)](./phase-05-session-end-hook-auto-save.md) | 2d | Pending |
 | 6 | [Workspace Scan, Clone & Conflicts](./phase-06-workspace-scan-clone-conflicts.md) | 1.5d | Pending |
 | 7 | [Docs & Release](./phase-07-docs-and-release.md) | 1d | Pending |
@@ -50,15 +51,16 @@ tauri 2.11.6 · single-instance 2.4.5 · dialog 2.7.3 · notification 2.4.0 · o
 | `passphrase_strength(passphrase)` | → 0–4 (create needs 3+) |
 | `create_key(passphrase)` / `unlock_key(passphrase)` | → () ; re-run the storage check first; errors `weak_passphrase`, `key_exists`, `decrypt_failed`, `wrong_identity` |
 | `save_settings(patch)` | → `AppState`; validates language (`vi`/`en`) and absolute paths |
-| `list_projects` | → `ProjectSummary[]{key_hash, remote, subpath, owner, name, status, local_root?, sessions, last_saved_by?, last_saved_at?, warnings[]}` |
-| `get_project_detail(key_hash)` | → `{summary, sessions: SessionRow[]{rel, title, updated_at, size, state, saved_by?}, activity[]}` |
-| `sync_project(key_hash, mode, files?)` | mode `auto\|force_local\|force_remote` → `SyncReport{pushed[], pulled[], skipped[{rel, reason}]}` |
-| `save_all` | → `SyncReport[]` (push-only) |
-| `link_project(key_hash, local_root)` | → `{origin_matches}` |
-| `delete_remote_session(key_hash, rel)` · `open_project_folder(key_hash)` · `install_hooks` · `uninstall_hooks` | → () |
+| `list_projects(fetch)` | → `Dashboard{projects: ProjectView[]{key_hash, remote, owner, name, subpath, status, local_root?, files: FileRow[]{rel, state, conflict, title?, size?, saved_by?, saved_at?}, unreadable[]}, unmanaged, secondary, errors[], offline, fetched_at?}`; sessions are grouped from `files` in the UI |
+| `project_activity(key_hash)` | → `Activity[]` (last 20) |
+| `sync_project(key_hash, mode, files?)` | mode `auto\|force_local\|force_remote` → `SyncReport{pushed[], pulled[], skipped[[rel, reason]]}` |
+| `save_all` | → `SaveAllItem[]{key_hash, report?, error?}` (push-only over local_ahead/both) |
+| `link_project(key_hash, local_root, force)` | → `{origin_matches, found_remote?}`; links only when the origin matches or `force` |
+| `delete_remote_session(key_hash, session_id)` · `open_project_folder(key_hash)` · `clear_local_data` · `install_hooks` · `uninstall_hooks` (phase 5) | → () |
+| events | `projects-changed(Dashboard)` · `sync-progress{step: download\|upload (percent) \| restore\|save (current, total)}` · `storage-changed` · `auth-changed` |
 | `scan_workspaces` · `clone_and_link(key_hash, root)` (phase 6) | → `ScanMatch[]` / () |
 
-Status enum: `synced | local_ahead | remote_ahead | both | diverged | not_linked | no_remote`. Events: `sync-progress{key_hash, stage, done, total}`, `projects-changed`. Errors `{code, params}` — UI maps codes via locale files (`vi`, `en`); Rust never returns UI text (tray labels use a small Rust locale map). Exe subcommands: `hook-save`, `hook-worker --dir <enc> --delay <s>`, `git-credential get`. Hooks registered in exec form (`command` + `args`).
+Status enum: `synced | local_ahead | remote_ahead | both | diverged | not_linked | no_remote`. Errors `{code, detail}` — UI maps codes via locale files (`vi`, `en`); Rust never returns UI text (tray labels are read from the same locale files). Exe subcommands: `hook-save`, `hook-worker --dir <enc> --delay <s>`, `git-credential get`. Hooks registered in exec form (`command` + `args`).
 
 ## Out of Scope (v1)
 macOS/Linux · `file-history` · auto-pull · multi-account · remote history rollback · auto remote retention (manual delete only)

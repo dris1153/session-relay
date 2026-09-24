@@ -1,7 +1,7 @@
 ---
 phase: 4
 title: "Dashboard, Linking, Tray & i18n"
-status: pending
+status: completed
 priority: P1
 effort: "4d"
 dependencies: [3]
@@ -13,6 +13,13 @@ dependencies: [3]
 - plan.md §IPC Contract (status enum, commands, events); Red Team #1, #3, #9, #14
 - DESIGN.md — tokens, Filled Dark Button, Status Badge, Editorial Section Header
 - [Tauri research §2 tray, §3 single-instance](./research/researcher-01-tauri-v2-windows-report.md)
+
+## Implementation Notes (2026-09-23)
+- Rust: `dashboard.rs` (view cache + `load`/`publish`), `watcher.rs`, `tray.rs`, `autostart.rs`, `commands/dashboard.rs`; engine: `progress.rs` (throttled sink), stall-based git transfers (`run_watched`, 120 s without output), `last_snapshot()` from `refs/session-relay/last` (set by every fetch and push, so statuses stay right offline and right after a save).
+- Startup unlocks from the cached identity with no network; storage is checked behind the dashboard. Maintenance waits for the lock and publishes when done.
+- `failure()` classifies git errors: credentials/403/not found → `auth_rejected`, network → `network`; only real git failures rebuild the clone. `LC_ALL=C` keeps messages parseable.
+- Frontend: `features/dashboard/*`, `features/settings/settings-page.tsx`, `lib/{use-dashboard,status-copy,sessions,format}.ts`, `components/{confirm-dialog,folder-fields}.tsx`. Sessions are grouped from file rows in the UI.
+- Deferred: error toasts while the window is hidden (needs the notification plugin; Phase 5 hooks are the main source of background errors); killing an in-flight git on Quit (job object, with Phase 5 process handling); manifest cache per snapshot for large project counts; per-row "checking…" state.
 
 ## Overview
 2-column dashboard: sidebar project list + detail pane with one primary action per status, sessions list, activity. Minimal linking (folder picker + origin validation) so the main A→B flow works without phase 6. Tray with attention badge. Close → hide to tray; second launch focuses window. UI in Vietnamese + English (locale files). Autostart with Windows (default on, starts hidden in tray).
@@ -85,16 +92,16 @@ React
 8. Empty states ("Chưa thấy phiên Claude nào có remote GitHub", "Mọi dự án đã khớp"); visual pass vs DESIGN.md (canvas #f8f8f6, cards #fff r24, hairline #e7e6e1, serif only 24/30 px, sans ≤ 580).
 
 ## Todo List
-- [ ] Commands + validation
-- [ ] watcher + tray + single-instance
-- [ ] Sidebar + detail + primary/overflow
-- [ ] Link flow
-- [ ] Sessions list + activity
-- [ ] Progress/skips/toasts
-- [ ] Settings page
-- [ ] i18n (vi, en) + tray labels
-- [ ] Autostart (default on, --minimized)
-- [ ] Empty states + visual pass
+- [x] Commands + validation (`commands/dashboard.rs`; key_hash resolved through the cached view)
+- [x] watcher + tray + single-instance
+- [x] Sidebar + detail + primary/overflow
+- [x] Link flow
+- [x] Sessions list + activity
+- [x] Progress/skips (toasts while hidden: deferred, see below)
+- [x] Settings page
+- [x] i18n (vi, en) + tray labels
+- [x] Autostart (release builds only; applied on an explicit choice, `--minimized`)
+- [x] Empty states + visual pass
 
 ## Success Criteria
 - [ ] Each status shows exactly one correct primary action; force actions need confirm
@@ -110,3 +117,18 @@ React
 
 ## Security Considerations
 - UI never passes arbitrary filesystem paths except dialog-picked link root; opener limited to github.com + resolved project folder.
+
+## Review Log (2026-09-23)
+Code review 7/10 (`reports/code-reviewer-260923-phase-04-dashboard.md`); tester found no real bug (its offline case used a deleted file:// remote, which says nothing about https). Fixed:
+- H1: startup maintenance waits for the lock and publishes afterwards; the first load retries while the store is busy.
+- H2: every computed view updates the tray, not only background refreshes.
+- M1: the view cache lock is never held across git; a generation counter drops results from a replaced engine.
+- M2: progress from background refreshes is ignored unless an action runs; the sink throttles to 100 ms per step (first and last always pass); file steps report `current` of `total`; only transfer lines count ("Receiving/Unpacking/Writing objects").
+- M3/L1: `refs/session-relay/last` replaces the cached sha and FETCH_HEAD, so a just-saved project never shows as deleted from the cloud.
+- M4: 403/"Permission to" → auth; git spawn failures → `io` (no rebuild); `LC_ALL=C`.
+- M5: the watcher marks offline on network failure and hands auth loss to onboarding once.
+- M6: focus reloads skip while an action runs or within 5 s of the last load.
+- M7: storage errors also show a message; one action at a time; the selected project is pinned.
+- M8: autostart is applied only when the user sets it (onboarding end, Settings), never at startup.
+- Lows: UNC paths refused before probing; cache reset inside the lock in "clear local data"; poison-tolerant cache lock; tolerant tray label parsing; PowerShell-safe resume command; "open folder" opens the Claude cwd; activity label for cloud deletes; dialog label, menu arrow keys, global focus ring.
+- Tests: `tests/progress_and_offline.rs` (file progress; an unreachable https remote keeps the clone and the last snapshot). Tester's three files were replaced (duplicated unit tests, conditional assertions, unsynced test files).

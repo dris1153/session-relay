@@ -11,3 +11,4 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Nothing has be
 - Two-phase dashboard load (statuses from the last snapshot on disk first), progress steps, skeletons; batch manifest reads and parallel evaluation.
 - Auto-save through Claude Code `Stop` / `SessionEnd` hooks: pending markers, detached push-only worker, retries from the app, flush on Quit, hooks removed on uninstall.
 - New-machine flow: find existing checkouts in the workspace folders or clone the repository, then restore; per-file conflict dialog for diverged sessions.
+- App icon: two ink arcs handing over a Clay dot (source `src-tauri/app-icon.png`; regenerate with `npx tauri icon src-tauri/app-icon.png`).

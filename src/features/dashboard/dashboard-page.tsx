@@ -5,10 +5,13 @@ import { pickFolder } from "../../components/folder-fields";
 import { ErrorNote } from "../../components/onboarding-card";
 import { errorText, t, useLanguage } from "../../lib/i18n";
 import { needsAttention, STATUS } from "../../lib/status-copy";
-import { api, type ProjectView, type SyncMode, type SyncReport, type User } from "../../lib/tauri-commands";
+import { api, errorCode, type ProjectView, type SyncMode, type SyncReport, type User } from "../../lib/tauri-commands";
 import { useDashboard } from "../../lib/use-dashboard";
+import { useWorkspaceScan } from "../../lib/use-workspace-scan";
 import { SettingsPage } from "../settings/settings-page";
+import { ConflictDialog } from "./conflict-dialog";
 import { DashboardHeader } from "./dashboard-header";
+import { LinkProjectPanel } from "./link-project-panel";
 import { ProjectDetailPane, type DetailActions } from "./project-detail-pane";
 import { DetailSkeleton } from "./loading-skeleton";
 import { ProjectSidebar } from "./project-sidebar";
@@ -24,12 +27,16 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [reports, setReports] = useState<Record<string, SyncReport>>({});
   const [activityVersion, setActivityVersion] = useState(0);
+  // Key hashes: the dialog and the cancel button belong to one project.
+  const [resolving, setResolving] = useState<string | null>(null);
+  const [cloning, setCloning] = useState<string | null>(null);
   const projects = data?.projects ?? [];
   const project = projects.find((p) => p.key_hash === selected) ?? projects.find((p) => needsAttention(p.status)) ?? projects[0] ?? null;
   // Pin the default pick, so the pane does not jump once this project stops needing attention.
   useEffect(() => {
     if (project && project.key_hash !== selected) setSelected(project.key_hash);
   }, [project, selected]);
+  const scan = useWorkspaceScan(page === "projects" && project?.status === "not_linked");
 
   const sync = (p: ProjectView, mode: SyncMode, files?: string[]) =>
     run(p.key_hash, async () => {
@@ -38,8 +45,8 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
       setActivityVersion((v) => v + 1);
     });
 
-  const link = async (p: ProjectView) => {
-    const folder = await pickFolder();
+  const link = async (p: ProjectView, picked?: string) => {
+    const folder = picked ?? (await pickFolder());
     if (!folder) return;
     const result = await run(p.key_hash, () => api.linkProject(p.key_hash, folder, false));
     if (!result) return;
@@ -52,8 +59,30 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
     });
   };
 
+  const clone = (p: ProjectView, root: string) =>
+    run(p.key_hash, async () => {
+      setCloning(p.key_hash);
+      try {
+        await api.cloneProject(p.key_hash, root);
+      } catch (e) {
+        if (errorCode(e) === "cancelled") return;
+        throw e;
+      } finally {
+        setCloning(null);
+      }
+      const report = await api.syncProject(p.key_hash, "auto");
+      setReports((all) => ({ ...all, [p.key_hash]: report }));
+    });
+
+  const primary = (p: ProjectView) => {
+    const action = STATUS[p.status].action;
+    if (action === "link") return link(p);
+    if (action === "resolve") return setResolving(p.key_hash);
+    return sync(p, "auto");
+  };
+
   const actions = (p: ProjectView): DetailActions => ({
-    primary: () => (STATUS[p.status].action === "link" ? link(p) : sync(p, "auto")),
+    primary: () => primary(p),
     force: (mode) => setConfirm({ title: t(`confirm.${mode}_title`), body: t(`confirm.${mode}_body`), confirm: t(`project.${mode}`), action: () => sync(p, mode) }),
     restoreSession: (row) => sync(p, "auto", row.files),
     deleteSession: (row) =>
@@ -103,7 +132,18 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
         {page === "settings" ? (
           <SettingsPage onSignOut={onSignOut} />
         ) : project ? (
-          <ProjectDetailPane project={project} autoSaveError={data?.auto_save_failures.find(([key]) => key === project.key_hash)?.[1] ?? null} busy={busy !== null} running={busy === project.key_hash} report={reports[project.key_hash] ?? null} actions={actions(project)} activityVersion={activityVersion} />
+          <ProjectDetailPane project={project} autoSaveError={data?.auto_save_failures.find(([key]) => key === project.key_hash)?.[1] ?? null} busy={busy !== null} running={busy === project.key_hash} report={reports[project.key_hash] ?? null} actions={actions(project)} activityVersion={activityVersion}>
+            {project.status === "not_linked" && (
+              <LinkProjectPanel
+                project={project}
+                checkouts={scan.checkouts}
+                roots={scan.roots}
+                busy={busy !== null}
+                cloning={cloning === project.key_hash}
+                actions={{ linkFolder: (folder) => link(project, folder), pickFolder: () => link(project), clone: (root) => clone(project, root), cancelClone: () => api.cancelClone(), rescan: scan.rescan }}
+              />
+            )}
+          </ProjectDetailPane>
         ) : data ? (
           <p className="flex-1 p-8 text-body text-ashen">{t("dashboard.empty", { unmanaged: data.unmanaged })}</p>
         ) : listStatus === "loading" ? (
@@ -117,6 +157,17 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
           </div>
         )}
       </div>
+      <ConflictDialog
+        open={resolving !== null}
+        files={projects.find((p) => p.key_hash === resolving)?.files.filter((f) => f.state === "diverged") ?? []}
+        skipped={(resolving && reports[resolving]?.skipped) || []}
+        busy={busy !== null}
+        onResolve={(rel, mode) => {
+          const target = projects.find((p) => p.key_hash === resolving);
+          if (target) sync(target, mode, [rel]);
+        }}
+        onClose={() => setResolving(null)}
+      />
       <ConfirmDialog
         open={confirm !== null}
         title={confirm?.title ?? ""}

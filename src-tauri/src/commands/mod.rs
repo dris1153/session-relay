@@ -1,6 +1,7 @@
 pub mod dashboard;
 pub mod settings;
 pub mod setup;
+pub mod workspace;
 
 use serde::Serialize;
 

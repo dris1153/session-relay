@@ -34,6 +34,12 @@ pub enum Error {
     WrongIdentity,
     #[error("the storage repository is empty: it was reset")]
     StoreReset,
+    #[error("git clone failed: {0}")]
+    Clone(String),
+    #[error("cancelled")]
+    Cancelled,
+    #[error("the clone destination already exists")]
+    DestinationExists,
     #[error("not signed in to GitHub")]
     NotLoggedIn,
     #[error("GitHub rejected the credentials: {0}")]
@@ -69,6 +75,9 @@ impl Error {
             Error::NotLinked => "not_linked",
             Error::WrongIdentity => "wrong_identity",
             Error::StoreReset => "store_reset",
+            Error::Clone(_) => "clone_failed",
+            Error::Cancelled => "cancelled",
+            Error::DestinationExists => "destination_exists",
             Error::NotLoggedIn => "not_logged_in",
             Error::Auth(_) => "auth_rejected",
             Error::Network(_) => "network",

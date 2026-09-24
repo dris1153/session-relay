@@ -1,7 +1,8 @@
+import type { ReactNode } from "react";
 import { Button } from "../../components/button";
 import { errorText, t, useLanguage } from "../../lib/i18n";
 import { groupSessions, type SessionRow } from "../../lib/sessions";
-import { STATUS, statusSentence } from "../../lib/status-copy";
+import { skipReason, STATUS, statusSentence } from "../../lib/status-copy";
 import type { ProjectView, SyncReport } from "../../lib/tauri-commands";
 import { ActivityLog } from "./activity-log";
 import { ProjectOverflowMenu } from "./project-overflow-menu";
@@ -20,13 +21,11 @@ export type DetailActions = {
 function skipNotes(pairs: [string, string][]): string[] {
   const counts = new Map<string, number>();
   pairs.forEach(([, code]) => counts.set(code, (counts.get(code) ?? 0) + 1));
-  return [...counts].map(([code, count]) => {
-    const key = `skip.${code}`;
-    return t("skip.line", { count, reason: t(key) === key ? errorText(code) : t(key) });
-  });
+  return [...counts].map(([code, count]) => t("skip.line", { count, reason: skipReason(code) }));
 }
 
-export function ProjectDetailPane({ project, autoSaveError, busy, running, report, actions, activityVersion }: { project: ProjectView; autoSaveError: string | null; busy: boolean; running: boolean; report: SyncReport | null; actions: DetailActions; activityVersion: unknown }) {
+/** `children`: extra panels for this status (linking a project that has no checkout here). */
+export function ProjectDetailPane({ project, autoSaveError, busy, running, report, actions, activityVersion, children }: { project: ProjectView; autoSaveError: string | null; busy: boolean; running: boolean; report: SyncReport | null; actions: DetailActions; activityVersion: unknown; children?: ReactNode }) {
   useLanguage();
   const { glyph, action } = STATUS[project.status];
   const linked = project.local_root !== null;
@@ -75,6 +74,7 @@ export function ProjectDetailPane({ project, autoSaveError, busy, running, repor
           ))}
         </ul>
       )}
+      {children}
       <section className="flex flex-col gap-3">
         <h2 className="text-caption font-medium uppercase tracking-wide text-pebble">{t("sessions.title")}</h2>
         <SessionList sessions={groupSessions(project.files)} disabled={busy} onRestore={actions.restoreSession} onDelete={actions.deleteSession} />

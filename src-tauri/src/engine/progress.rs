@@ -18,6 +18,8 @@ pub enum Progress {
     Checking,
     Download { percent: u8 },
     Upload { percent: u8 },
+    /// Cloning a project repo (not the store).
+    Clone { percent: u8 },
     Restore { current: usize, total: usize },
     Save { current: usize, total: usize },
     Evaluate { current: usize, total: usize },
@@ -26,7 +28,7 @@ pub enum Progress {
 impl Progress {
     fn is_last(&self) -> bool {
         match *self {
-            Progress::Download { percent } | Progress::Upload { percent } => percent == 100,
+            Progress::Download { percent } | Progress::Upload { percent } | Progress::Clone { percent } => percent == 100,
             Progress::Restore { current, total } | Progress::Save { current, total } | Progress::Evaluate { current, total } => current == total,
             Progress::Waiting | Progress::Checking => true,
         }
@@ -72,7 +74,7 @@ impl ProgressSink {
 /// Percent of the last transfer line: "Receiving objects", "Unpacking objects" (small fetches
 /// below `fetch.unpackLimit`) or "Writing objects". Other phases ("Counting objects: 100%")
 /// would make the bar jump; a line split across chunks is simply skipped.
-fn transfer_percent(text: &str) -> Option<u8> {
+pub(crate) fn transfer_percent(text: &str) -> Option<u8> {
     const TRANSFER: [&str; 3] = ["Receiving objects:", "Unpacking objects:", "Writing objects:"];
     let line = text.split(['\r', '\n']).rev().find(|l| TRANSFER.iter().any(|t| l.contains(t)))?;
     let (_, after) = line.split_once("objects:")?;

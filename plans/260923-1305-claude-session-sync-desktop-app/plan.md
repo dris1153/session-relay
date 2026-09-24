@@ -29,7 +29,7 @@ Research: [Tauri v2 Windows](./research/researcher-01-tauri-v2-windows-report.md
 | 4 | [Dashboard, Linking, Tray & i18n](./phase-04-dashboard-ui-and-tray.md) | 4d | Complete |
 | 4b | [Dashboard Loading Speed & Skeleton UI](./phase-04b-dashboard-loading-speed-and-skeleton.md) | 1d | Complete |
 | 5 | [Auto-Save Hooks (Stop + SessionEnd)](./phase-05-session-end-hook-auto-save.md) | 2d | Complete (manual checks in Phase 7 E2E) |
-| 6 | [Workspace Scan, Clone & Conflicts](./phase-06-workspace-scan-clone-conflicts.md) | 1.5d | Pending |
+| 6 | [Workspace Scan, Clone & Conflicts](./phase-06-workspace-scan-clone-conflicts.md) | 1.5d | Complete (success criteria in Phase 7 E2E) |
 | 7 | [Docs & Release](./phase-07-docs-and-release.md) | 1d | Pending |
 
 Sequential 1→7. Phase 5 core parts may start after 2.
@@ -59,8 +59,8 @@ tauri 2.11.6 · single-instance 2.4.5 · dialog 2.7.3 · notification 2.4.0 · o
 | `delete_remote_session(key_hash, session_id)` · `open_project_folder(key_hash)` · `clear_local_data` | → () |
 | `set_auto_save(enabled)` | → `AppState` (installs/removes the hooks in `<claude_home>/settings.json`) |
 | `local_projects` | → `Dashboard?` (no network; None before the first download) |
-| events | `projects-changed(Dashboard)` · `sync-progress{step: download\|upload (percent) \| restore\|save (current, total)}` · `storage-changed` · `auth-changed` |
-| `scan_workspaces` · `clone_and_link(key_hash, root)` (phase 6) | → `ScanMatch[]` / () |
+| events | `projects-changed(Dashboard)` · `sync-progress{step: waiting\|checking \| download\|upload\|clone (percent) \| restore\|save\|evaluate (current, total)}` · `storage-changed` · `auth-changed` |
+| `scan_workspaces` · `clone_project(key_hash, root)` · `cancel_clone` | → `Checkout[]{remote, path}` / dest path (cloned with the user's git, then linked) / () |
 
 Status enum: `synced | local_ahead | remote_ahead | both | diverged | not_linked | no_remote`. Errors `{code, detail}` — UI maps codes via locale files (`vi`, `en`); Rust never returns UI text (tray labels are read from the same locale files). Exe subcommands: `hook-save`, `hook-worker --dir <enc> --stamp <n> --delay <s>`, `git-credential get`. Hooks registered in exec form (`command` + `args`).
 

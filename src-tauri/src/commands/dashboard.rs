@@ -110,7 +110,7 @@ pub async fn link_project(state: State<'_, Arc<AppState>>, key_hash: String, loc
             let engine = state.engine().ok_or(Error::NotLoggedIn)?;
             // A subfolder of the checkout still links the repo root.
             let root = located.filter(|_| origin_matches).map_or(local_root, |l| l.toplevel);
-            overview::link_repo(&engine, &key.remote, &root)?;
+            overview::link_repo(&engine, &key.remote, &root, true)?;
         }
         Ok(LinkResult { origin_matches, found_remote })
     })

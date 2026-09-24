@@ -54,7 +54,11 @@ export type FileRow = {
   size: number | null;
   saved_by: string | null;
   saved_at: string | null;
+  local_size: number | null;
+  local_modified: string | null;
 };
+
+export type Checkout = { remote: string; path: string };
 
 export type ProjectView = {
   key_hash: string;
@@ -89,7 +93,7 @@ export type LinkResult = { origin_matches: boolean; found_remote: string | null 
 /** Counted steps name the item being worked on: `current` of `total`. */
 export type Progress =
   | { step: "waiting" | "checking" }
-  | { step: "download" | "upload"; percent: number }
+  | { step: "download" | "upload" | "clone"; percent: number }
   | { step: "restore" | "save" | "evaluate"; current: number; total: number };
 
 export type SyncMode = "auto" | "force_local" | "force_remote";
@@ -122,4 +126,7 @@ export const api = {
   deleteRemoteSession: (keyHash: string, sessionId: string) => invoke<void>("delete_remote_session", { keyHash, sessionId }),
   openProjectFolder: (keyHash: string) => invoke<void>("open_project_folder", { keyHash }),
   clearLocalData: () => invoke<void>("clear_local_data"),
+  scanWorkspaces: () => invoke<Checkout[]>("scan_workspaces"),
+  cloneProject: (keyHash: string, root: string) => invoke<string>("clone_project", { keyHash, root }),
+  cancelClone: () => invoke<void>("cancel_clone"),
 };

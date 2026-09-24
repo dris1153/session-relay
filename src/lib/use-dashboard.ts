@@ -7,7 +7,7 @@ const STORAGE_ERRORS = new Set(["not_logged_in", "auth_rejected", "wrong_identit
 const FOCUS_RELOAD_GAP_MS = 5000;
 const BUSY_RETRY_MS = 3000;
 /** Steps a user action can cause; the rest (waiting, checking, evaluating) belong to loading the list. */
-const ACTION_STEPS = new Set(["download", "upload", "restore", "save"]);
+const ACTION_STEPS = new Set(["download", "upload", "clone", "restore", "save"]);
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

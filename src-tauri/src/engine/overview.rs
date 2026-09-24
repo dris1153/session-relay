@@ -56,9 +56,13 @@ pub fn refresh(engine: &Engine, wait: Duration) -> Result<Option<String>> {
 }
 
 /// Links this machine's checkout of `remote` (user picked the folder, or clone finished).
-pub fn link_repo(engine: &Engine, remote: &str, root: &Path) -> Result<()> {
+/// Without `replace`, a link learned meanwhile (Claude opened in another checkout) wins.
+pub fn link_repo(engine: &Engine, remote: &str, root: &Path, replace: bool) -> Result<()> {
     let _lock = SyncLock::acquire_within(&engine.cfg.lock_file(), "link", Duration::from_secs(10))?;
     let mut links = Links::load(&engine.cfg.links_file())?;
+    if !replace && links.repos.contains_key(remote) {
+        return Ok(());
+    }
     links.link_repo(remote, root);
     links.save(&engine.cfg.links_file())
 }

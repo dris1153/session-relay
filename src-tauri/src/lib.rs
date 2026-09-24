@@ -67,6 +67,9 @@ pub fn run() {
             commands::dashboard::delete_remote_session,
             commands::dashboard::open_project_folder,
             commands::dashboard::clear_local_data,
+            commands::workspace::scan_workspaces,
+            commands::workspace::clone_project,
+            commands::workspace::cancel_clone,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

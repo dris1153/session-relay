@@ -1,16 +1,21 @@
 import type { FileRow, ProjectStatus, ProjectView } from "./tauri-commands";
-import { t } from "./i18n";
+import { errorText, t } from "./i18n";
 import { relativeTime } from "./format";
 
-export type PrimaryAction = "save" | "restore" | "sync" | "link";
+/** Why a sync left a file out: `skip.<code>` copy, else the error text for that code. */
+export function skipReason(code: string): string {
+  const key = `skip.${code}`;
+  return t(key) === key ? errorText(code) : t(key);
+}
+
+export type PrimaryAction = "save" | "restore" | "sync" | "link" | "resolve";
 
 /** Monochrome glyph + the one primary action per status (plan §Requirements). */
 export const STATUS: Record<ProjectStatus, { glyph: string; action: PrimaryAction | null }> = {
   local_ahead: { glyph: "●", action: "save" },
   remote_ahead: { glyph: "○", action: "restore" },
   both: { glyph: "◑", action: "sync" },
-  // Settled by hand through the overflow menu until the conflict screen exists.
-  diverged: { glyph: "◐", action: null },
+  diverged: { glyph: "◐", action: "resolve" },
   not_linked: { glyph: "◌", action: "link" },
   synced: { glyph: "✓", action: null },
   no_remote: { glyph: "–", action: null },

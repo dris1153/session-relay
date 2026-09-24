@@ -40,7 +40,7 @@ impl Machine {
 
     /// What the user does once per machine (or discovery does for sessions created here).
     pub fn link(&mut self) {
-        overview::link_repo(&self.engine, REMOTE, &self.checkout).unwrap();
+        overview::link_repo(&self.engine, REMOTE, &self.checkout, true).unwrap();
     }
 
     pub fn key(&self) -> ProjectKey {

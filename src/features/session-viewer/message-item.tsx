@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { formatClock, formatCount, formatDateTime } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import type { Block, Item } from "../../lib/tauri-commands";
@@ -18,7 +19,8 @@ export function isShown(item: Item): boolean {
   return true;
 }
 
-export function MessageItem({ item, detail }: { item: Item; detail: LoadDetail }) {
+/** `anchor`: the element to scroll back to (a turn's prompt). */
+export function MessageItem({ item, detail, anchor }: { item: Item; detail: LoadDetail; anchor?: Ref<HTMLLIElement> }) {
   if (item.kind === "event") return <EventLine item={item} />;
   const user = item.kind === "user";
   const heading = [
@@ -28,7 +30,7 @@ export function MessageItem({ item, detail }: { item: Item; detail: LoadDetail }
     !user && item.usage && t("viewer.turn_tokens", { input: formatCount(item.usage.input + item.usage.cache_creation), output: formatCount(item.usage.output) }),
   ];
   return (
-    <li className={`flex flex-col gap-2 ${LAZY}`}>
+    <li ref={anchor} className={`flex flex-col gap-2 ${LAZY}`}>
       <p className="text-caption text-ashen" title={item.at ? formatDateTime(item.at) : undefined}>
         {heading.filter(Boolean).join(" · ")}
       </p>

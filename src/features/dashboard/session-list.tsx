@@ -10,8 +10,8 @@ export function SessionList({ sessions, disabled, onOpen, onRestore, onDelete }:
       {sessions.map((row) => {
         const inCloud = row.id !== "memory" && row.state !== "local_only" && row.state !== "remote_deleted";
         return (
-          <li key={row.id} className="flex items-center gap-4 py-3">
-            <button type="button" disabled={row.id === "memory"} onClick={() => onOpen(row)} title={row.id === "memory" ? undefined : t("sessions.open")} className="min-w-0 flex-1 rounded-control text-left enabled:hover:bg-soft-stone disabled:cursor-default">
+          <li key={row.id} className="flex items-center gap-4 py-1.5">
+            <button type="button" disabled={row.id === "memory"} onClick={() => onOpen(row)} title={row.id === "memory" ? undefined : t("sessions.open")} className="-ml-3 min-w-0 flex-1 rounded-control px-3 py-1.5 text-left transition-colors enabled:hover:bg-soft-stone disabled:cursor-default">
               <span className="block truncate text-[15px] text-carbon-ink">
                 {row.id === "memory" ? t("sessions.memory") : (row.title ?? t("sessions.untitled", { id: row.id.slice(0, 8) }))}
               </span>

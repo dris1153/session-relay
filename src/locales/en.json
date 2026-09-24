@@ -249,6 +249,8 @@
   "viewer.detail_cut": "Showing the first 2 MB.",
   "viewer.output_gone": "The full output is no longer saved; only this preview is left.",
   "viewer.image": "Image {n}",
+  "viewer.latest": "Latest",
+  "viewer.back_to_prompt": "Back to this prompt",
   "viewer.show_all": "Show all",
   "viewer.tool_error": "error",
   "viewer.event.compact": "Conversation compacted",

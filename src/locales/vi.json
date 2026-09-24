@@ -249,6 +249,8 @@
   "viewer.detail_cut": "Đang hiện 2 MB đầu tiên.",
   "viewer.output_gone": "Bản đầy đủ không còn được lưu, chỉ còn phần xem trước này.",
   "viewer.image": "Ảnh {n}",
+  "viewer.latest": "Mới nhất",
+  "viewer.back_to_prompt": "Về prompt này",
   "viewer.show_all": "Hiện hết",
   "viewer.tool_error": "lỗi",
   "viewer.event.compact": "Hội thoại đã được compact",

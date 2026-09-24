@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "../../components/button";
 import { ErrorNote } from "../../components/onboarding-card";
 import { formatCount, formatDateTime } from "../../lib/format";
 import { errorText, t, useLanguage } from "../../lib/i18n";
 import type { SessionMeta, Side } from "../../lib/tauri-commands";
 import { useSessionView } from "../../lib/use-session-view";
-import { isShown, MessageItem } from "./message-item";
+import { Conversation } from "./conversation";
+import { isShown } from "./message-item";
 import { ShowSystem } from "./show-system";
 
 export type ViewedSession = { keyHash: string; sessionId: string; side: Side };
@@ -16,7 +17,7 @@ export function SessionViewer({ session, onBack }: { session: ViewedSession; onB
   const { view, error, detail, retry } = useSessionView(session.keyHash, session.sessionId, session.side);
   const [showSystem, setShowSystem] = useState(false);
   // Keyed by position in the whole list, so toggling system events keeps opened blocks open.
-  const items = view?.items.map((item, index) => ({ item, index })).filter(({ item }) => showSystem || isShown(item)) ?? [];
+  const entries = useMemo(() => view?.items.map((item, index) => ({ item, index })).filter(({ item }) => showSystem || isShown(item)) ?? [], [view, showSystem]);
 
   return (
     <article className="flex min-w-0 flex-1 flex-col">
@@ -34,25 +35,22 @@ export function SessionViewer({ session, onBack }: { session: ViewedSession; onB
           {t("viewer.show_system")}
         </label>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
-        {error && (
-          <div className="flex flex-col items-start gap-3">
-            <ErrorNote message={errorText(error)} />
-            <Button variant="secondary" onClick={retry}>
-              {t("common.retry")}
-            </Button>
-          </div>
-        )}
-        {!view && !error && <p className="text-body text-ashen">{t("viewer.loading")}</p>}
-        {view && items.length === 0 && <p className="text-body text-ashen">{t("viewer.empty")}</p>}
+      {error ? (
+        <div className="flex flex-col items-start gap-3 px-8 py-6">
+          <ErrorNote message={errorText(error)} />
+          <Button variant="secondary" onClick={retry}>
+            {t("common.retry")}
+          </Button>
+        </div>
+      ) : !view ? (
+        <p className="px-8 py-6 text-body text-ashen">{t("viewer.loading")}</p>
+      ) : entries.length === 0 ? (
+        <p className="px-8 py-6 text-body text-ashen">{t("viewer.empty")}</p>
+      ) : (
         <ShowSystem.Provider value={showSystem}>
-          <ol className="mx-auto flex max-w-[820px] flex-col gap-6">
-            {items.map(({ item, index }) => (
-              <MessageItem key={index} item={item} detail={detail} />
-            ))}
-          </ol>
+          <Conversation entries={entries} detail={detail} />
         </ShowSystem.Provider>
-      </div>
+      )}
     </article>
   );
 }

@@ -7,7 +7,7 @@ effort: 17d
 branch: main
 tags: [feature, desktop, tauri, rust, frontend, auth, crypto]
 blockedBy: []
-blocks: []
+blocks: [260924-1148-session-transcript-viewer]
 created: 2026-09-23
 ---
 

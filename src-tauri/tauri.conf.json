@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "session-relay",
+  "productName": "Session Relay",
   "version": "0.2.0",
   "identifier": "dev.sessionrelay.desktop",
   "build": {

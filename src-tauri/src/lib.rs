@@ -1,7 +1,7 @@
 pub mod app_paths;
 pub mod app_state;
 mod auto_save;
-mod autostart;
+pub mod autostart;
 pub mod commands;
 mod dashboard;
 pub mod engine;
@@ -17,7 +17,6 @@ mod watcher;
 use std::sync::Arc;
 
 use tauri::WindowEvent;
-use tauri_plugin_autostart::MacosLauncher;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -26,7 +25,6 @@ pub fn run() {
     tauri::Builder::default()
         // Must be first: a second launch only focuses the running window.
         .plugin(tauri_plugin_single_instance::init(|app, _, _| tray::show_main(app)))
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![autostart::MINIMIZED_ARG])))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(Arc::clone(&state))

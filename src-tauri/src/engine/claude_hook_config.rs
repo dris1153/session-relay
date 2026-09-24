@@ -96,6 +96,17 @@ pub fn install(settings: &Path, exe: &Path) -> Result<()> {
     write(settings, &root)
 }
 
+/// Hooks that point at an exe that no longer exists (the app moved to another folder) are
+/// pointed at `exe`. True when the file was rewritten.
+pub fn repair(settings: &Path, exe: &Path) -> Result<bool> {
+    let gone = |command: &String| !Path::new(command).exists();
+    if status(settings, exe) != HookStatus::StalePath || !registered(settings).iter().all(gone) {
+        return Ok(false);
+    }
+    install(settings, exe)?;
+    Ok(true)
+}
+
 pub fn uninstall(settings: &Path) -> Result<()> {
     let Some(mut root) = load(settings)? else { return Ok(()) };
     if remove_ours(&mut root) {

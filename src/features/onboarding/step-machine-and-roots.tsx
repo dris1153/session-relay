@@ -12,7 +12,8 @@ export function StepMachineAndRoots({ app, onDone }: { app: AppState; onDone: ()
   const [claudeHome, setClaudeHome] = useState(app.claude_home);
   const [roots, setRoots] = useState<string[]>(app.workspace_roots);
   const [autoSave, setAutoSave] = useState(app.hooks !== "malformed");
-  const [autostart, setAutostart] = useState(app.autostart);
+  // On by default: `app.autostart` reports what Windows does, which is off on a fresh install.
+  const [autostart, setAutostart] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 

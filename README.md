@@ -38,7 +38,7 @@ pnpm tauri dev              # development
 pnpm tauri build            # NSIS installer in src-tauri/target/release/bundle/nsis/
 ```
 
-Both `.env` values are public identifiers of your GitHub App; forks register their own app. The installer is not code-signed, so SmartScreen will warn. It installs per user into `%LOCALAPPDATA%\session-relay`.
+Both `.env` values are public identifiers of your GitHub App; forks register their own app. The installer is not code-signed, so SmartScreen will warn. It installs per user into `%LOCALAPPDATA%\Session Relay`; installing over 0.1–0.2 moves the old `session-relay` install there and keeps your data and auto-save.
 
 ## First run
 

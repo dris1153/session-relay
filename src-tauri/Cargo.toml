@@ -40,7 +40,7 @@ zxcvbn = "3"
 keyring-core = "1"
 windows-native-keyring-store = "1"
 tauri-plugin-single-instance = "2"
-tauri-plugin-autostart = "2"
+auto-launch = "0.5"
 
 [dev-dependencies]
 tempfile = "3"

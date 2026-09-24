@@ -104,6 +104,19 @@ fn spawn_detached(args: &[&str], cwd: &Path) -> Result<()> {
     Err(std::io::Error::last_os_error()).at(&exe)
 }
 
+/// `post-install`: an update may have moved the exe to another folder (0.2 → 0.3 renamed it).
+/// Points the auto-save hooks and the start-with-Windows entry here before anything calls them.
+pub fn post_install() -> i32 {
+    logging::init(app_dir().join("logs"), "post-install");
+    let settings = Settings::load(&app_dir().join("settings.json")).unwrap_or_else(|_| Settings::defaults());
+    let repaired = std::env::current_exe().map_err(|e| Error::Invalid(e.to_string())).and_then(|exe| claude_hook_config::repair(&settings.claude_home.join("settings.json"), &exe));
+    if let Err(e) = repaired {
+        log::warn!("post-install: {}", e.code());
+    }
+    crate::autostart::refresh();
+    0
+}
+
 /// `hook-uninstall`: the installer removes our hooks before deleting the exe, or Claude would
 /// report a failing hook after every turn.
 pub fn uninstall() -> i32 {

@@ -14,7 +14,8 @@ React UI (src/)                    Tauri app layer (src-tauri/src/)             
 └──────────────────────────┘                                                │ config · workspace_scan ·    │
                                    same exe, headless subcommands:          │ git_clone …                  │
                                    git-credential · hook-save ·             └──────────────────────────────┘
-                                   hook-worker · hook-uninstall
+                                   hook-worker · hook-uninstall ·
+                                   post-install
 ```
 
 `main.rs` dispatches the headless subcommands before Tauri starts, so the credential helper and the hook never open a window.
@@ -118,7 +119,7 @@ hook-worker: sleep 120 s (SessionEnd 5 s) ─▶ exit if a newer marker exists (
 GUI: markers older than 15 min are finished by the watcher (with backoff); Quit finishes all (≤30 s)
 ```
 
-Hooks are registered in `<claude_home>/settings.json` (both events, one group each, backups kept, malformed files never written); the switch reads that file as the source of truth. The NSIS pre-uninstall hook runs `hook-uninstall`.
+Hooks are registered in `<claude_home>/settings.json` (both events, one group each, backups kept, malformed files never written); the switch reads that file as the source of truth. The NSIS pre-uninstall hook runs `hook-uninstall`; the post-install hook runs `post-install`, which points hooks left on a vanished exe (an update into another folder) and an enabled start-with-Windows entry at the new exe.
 
 ## Session viewer
 

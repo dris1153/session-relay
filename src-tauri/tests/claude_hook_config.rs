@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use serde_json::{json, Value};
-use session_relay_lib::engine::claude_hook_config::{install, status, uninstall, HookStatus};
+use session_relay_lib::engine::claude_hook_config::{install, repair, status, uninstall, HookStatus};
 use session_relay_lib::engine::error::Error;
 
 const EXE: &str = r"C:\Users\me\AppData\Local\session-relay\session-relay.exe";
@@ -95,4 +95,22 @@ fn a_bom_is_accepted_repeated_installs_do_not_write_and_backups_are_capped() {
     }
     assert!((1..=5).contains(&backups(dir.path())), "backups are capped");
     assert_eq!(read(&settings)["model"], "opus");
+}
+
+#[test]
+fn repair_follows_the_exe_only_when_the_old_one_is_gone() {
+    let dir = tempfile::tempdir().unwrap();
+    let settings = dir.path().join("settings.json");
+    let (old, new) = (dir.path().join("session-relay").join("session-relay.exe"), dir.path().join("Session Relay").join("session-relay.exe"));
+    for exe in [&old, &new] {
+        std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        std::fs::write(exe, b"exe").unwrap();
+    }
+    assert!(!repair(&settings, &new).unwrap(), "nothing installed, nothing to repair");
+    install(&settings, &old).unwrap();
+    assert!(!repair(&settings, &new).unwrap(), "the old exe still exists: another install owns the hooks");
+    std::fs::remove_file(&old).unwrap();
+    assert!(repair(&settings, &new).unwrap(), "0.2 → 0.3 moved the exe to another folder");
+    assert_eq!(status(&settings, &new), HookStatus::Installed);
+    assert!(!repair(&settings, &new).unwrap());
 }

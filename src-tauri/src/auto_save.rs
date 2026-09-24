@@ -54,12 +54,10 @@ pub fn move_home(old_home: &Path, new_home: &Path) -> Result<()> {
 /// Hooks point at an exe that no longer exists (the app moved): point them here. Debug builds
 /// never do this, or a dev build and the installed app would keep rewriting Claude's settings.
 pub fn repair_stale_path(state: &AppState) {
-    let settings = claude_settings(&state.settings().claude_home);
-    let gone = |command: &String| !Path::new(command).exists();
-    if cfg!(debug_assertions) || status(state) != HookStatus::StalePath || !claude_hook_config::registered(&settings).iter().all(gone) {
+    if cfg!(debug_assertions) {
         return;
     }
-    if let Err(e) = set(state, true) {
+    if let Err(e) = exe().and_then(|exe| claude_hook_config::repair(&claude_settings(&state.settings().claude_home), &exe)) {
         log::warn!("repair auto-save hooks: {}", e.code());
     }
 }

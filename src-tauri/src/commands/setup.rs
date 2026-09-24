@@ -62,7 +62,8 @@ pub(super) fn app_state_dto(state: &AppState) -> crate::engine::error::Result<Ap
         claude_home: s.claude_home,
         workspace_roots: s.workspace_roots,
         language: s.language,
-        autostart: s.autostart,
+        // What Windows will actually do, not only what was saved (Task Manager can turn it off).
+        autostart: crate::autostart::is_on(s.autostart),
         hooks: crate::auto_save::status(state),
     })
 }

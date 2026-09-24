@@ -52,7 +52,7 @@ pub async fn save_settings(app: AppHandle, state: State<'_, Arc<AppState>>, patc
         // Only on an explicit choice (end of onboarding, Settings), never at startup: a user who
         // turned the entry off in Task Manager must not find it back on.
         if let Some(enabled) = patch_autostart {
-            crate::autostart::apply(&app, enabled);
+            crate::autostart::apply(enabled);
         }
         // The engine captured both at unlock time.
         if after.claude_home != before.claude_home {

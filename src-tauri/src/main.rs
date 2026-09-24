@@ -9,6 +9,7 @@ fn main() {
         Some("hook-save") => std::process::exit(session_relay_lib::hook::save()),
         Some("hook-worker") => std::process::exit(session_relay_lib::hook_worker::worker(&args)),
         Some("hook-uninstall") => std::process::exit(session_relay_lib::hook::uninstall()),
+        Some("post-install") => std::process::exit(session_relay_lib::hook::post_install()),
         _ => session_relay_lib::run(),
     }
 }

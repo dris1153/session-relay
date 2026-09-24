@@ -18,6 +18,18 @@ pub struct SettingsPatch {
     autostart: Option<bool>,
 }
 
+/// Auto-save on/off: installs or removes the hooks in Claude's `settings.json`.
+#[tauri::command]
+pub async fn set_auto_save(app: AppHandle, state: State<'_, Arc<AppState>>, enabled: bool) -> CmdResult<AppStateDto> {
+    let state = Arc::clone(&state);
+    blocking(move || {
+        crate::auto_save::set(&state, enabled)?;
+        crate::tray::refresh_menu(&app);
+        app_state_dto(&state)
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn save_settings(app: AppHandle, state: State<'_, Arc<AppState>>, patch: SettingsPatch) -> CmdResult<AppStateDto> {
     let state = Arc::clone(&state);
@@ -34,8 +46,8 @@ pub async fn save_settings(app: AppHandle, state: State<'_, Arc<AppState>>, patc
             s.language = patch.language.or(s.language.clone());
             s.autostart = patch.autostart.unwrap_or(s.autostart);
         })?;
-        if let Some(language) = after.language.as_deref().filter(|l| before.language.as_deref() != Some(*l)) {
-            crate::tray::set_language(&app, language);
+        if after.language != before.language {
+            crate::tray::refresh_menu(&app);
         }
         // Only on an explicit choice (end of onboarding, Settings), never at startup: a user who
         // turned the entry off in Task Manager must not find it back on.
@@ -43,10 +55,15 @@ pub async fn save_settings(app: AppHandle, state: State<'_, Arc<AppState>>, patc
             crate::autostart::apply(&app, enabled);
         }
         // The engine captured both at unlock time.
+        if after.claude_home != before.claude_home {
+            if let Err(e) = crate::auto_save::move_home(&before.claude_home, &after.claude_home) {
+                log::warn!("move auto-save hooks: {}", e.code());
+            }
+        }
         if (after.claude_home != before.claude_home || after.machine_name != before.machine_name) && state.engine().is_some() {
             state.restore_engine()?;
             let (app, state) = (app.clone(), Arc::clone(&state));
-            std::thread::spawn(move || crate::dashboard::publish(&app, &state));
+            std::thread::spawn(move || crate::dashboard::publish(&app, &state, true));
         }
         app_state_dto(&state)
     })

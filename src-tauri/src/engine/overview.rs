@@ -63,6 +63,18 @@ pub fn link_repo(engine: &Engine, remote: &str, root: &Path) -> Result<()> {
     links.save(&engine.cfg.links_file())
 }
 
+/// Which synced project a Claude dir belongs to, learning (and saving) a new link if needed.
+pub fn classify_dir(engine: &Engine, enc: &str, wait: Duration) -> Result<DirRole> {
+    let _lock = SyncLock::acquire_within(&engine.cfg.lock_file(), "classify", wait)?;
+    let before = Links::load(&engine.cfg.links_file())?;
+    let mut links = before.clone();
+    let role = links.classify_dir(&engine.cfg.projects_dir(), enc);
+    if links != before {
+        links.save(&engine.cfg.links_file())?;
+    }
+    Ok(role)
+}
+
 /// Status of every project known locally or in the cloud, against the newest snapshot this
 /// clone knows (read under the lock, so a save cannot slip in between).
 pub fn list(engine: &Engine, cache: &mut ManifestCache, wait: Duration) -> Result<Overview> {

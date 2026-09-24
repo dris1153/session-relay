@@ -52,3 +52,14 @@ pub fn recent(path: &Path, key_hash: Option<&str>, limit: usize) -> Vec<Activity
         .take(limit)
         .collect()
 }
+
+/// Projects whose latest activity is a failed auto-save, with the error code: the user has to
+/// know. Any later success (a manual save too) clears it.
+pub fn failed_auto_saves(path: &Path) -> Vec<(String, String)> {
+    let mut latest = std::collections::BTreeMap::new();
+    for entry in recent(path, None, KEEP_LINES) {
+        latest.entry(entry.key_hash.clone()).or_insert(entry);
+    }
+    latest.into_iter().filter(|(_, a)| a.source == Source::Hook && a.result != "ok").map(|(key_hash, a)| (key_hash, a.result)).collect()
+}
+

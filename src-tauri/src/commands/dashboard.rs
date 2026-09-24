@@ -69,7 +69,7 @@ pub async fn sync_project(app: AppHandle, state: State<'_, Arc<AppState>>, key_h
             UiSyncMode::ForceRemote => SyncMode::ForceRemote,
         };
         let report = dashboard::run_sync(&state, &key, mode, files.as_deref());
-        dashboard::publish(&app, &state);
+        dashboard::publish(&app, &state, true);
         report
     })
     .await
@@ -80,7 +80,7 @@ pub async fn save_all(app: AppHandle, state: State<'_, Arc<AppState>>) -> CmdRes
     let state = Arc::clone(&state);
     blocking(move || {
         let items = dashboard::save_all(&state);
-        dashboard::publish(&app, &state);
+        dashboard::publish(&app, &state, true);
         items
     })
     .await
@@ -124,7 +124,7 @@ pub async fn delete_remote_session(app: AppHandle, state: State<'_, Arc<AppState
         let key = dashboard::project_key(&state, &key_hash)?;
         let engine = state.engine().ok_or(Error::NotLoggedIn)?;
         overview::delete_remote_session(&engine, &key, &session_id)?;
-        dashboard::publish(&app, &state);
+        dashboard::publish(&app, &state, true);
         Ok(())
     })
     .await
@@ -159,7 +159,7 @@ pub async fn clear_local_data(app: AppHandle, state: State<'_, Arc<AppState>>) -
             let generation = cache.generation + 1;
             *cache = dashboard::DashboardCache { generation, ..Default::default() };
         }
-        dashboard::publish(&app, &state);
+        dashboard::publish(&app, &state, true);
         Ok(())
     })
     .await

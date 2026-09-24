@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type RepoRef = { owner: string; name: string };
 
+export type HookStatus = "installed" | "not_installed" | "stale_path" | "malformed";
+
 export type AppState = {
   git_version: string | null;
   git_ok: boolean;
@@ -14,6 +16,7 @@ export type AppState = {
   workspace_roots: string[];
   language: "vi" | "en" | null;
   autostart: boolean;
+  hooks: HookStatus;
 };
 
 export type LoginCode = { user_code: string; verification_uri: string; expires_in: number };
@@ -72,6 +75,7 @@ export type Dashboard = {
   errors: [string, string][];
   offline: boolean;
   fetched_at: string | null;
+  auto_save_failures: [string, string][];
 };
 
 export type Activity = { ts: string; key_hash: string; source: "gui" | "hook"; action: string; result: string; pushed: number; pulled: number };
@@ -108,6 +112,7 @@ export const api = {
   createKey: (passphrase: string) => invoke<void>("create_key", { passphrase }),
   unlockKey: (passphrase: string) => invoke<void>("unlock_key", { passphrase }),
   saveSettings: (patch: SettingsPatch) => invoke<AppState>("save_settings", { patch }),
+  setAutoSave: (enabled: boolean) => invoke<AppState>("set_auto_save", { enabled }),
   listProjects: (fetch: boolean) => invoke<Dashboard>("list_projects", { fetch }),
   localProjects: () => invoke<Dashboard | null>("local_projects"),
   projectActivity: (keyHash: string) => invoke<Activity[]>("project_activity", { keyHash }),

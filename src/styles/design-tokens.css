@@ -73,6 +73,7 @@
   }
   button:disabled,
   select:disabled,
+  label:has(> input:disabled),
   [aria-disabled="true"] {
     cursor: not-allowed;
   }

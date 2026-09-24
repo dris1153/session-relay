@@ -26,11 +26,11 @@ function skipNotes(pairs: [string, string][]): string[] {
   });
 }
 
-export function ProjectDetailPane({ project, busy, running, report, actions, activityVersion }: { project: ProjectView; busy: boolean; running: boolean; report: SyncReport | null; actions: DetailActions; activityVersion: unknown }) {
+export function ProjectDetailPane({ project, autoSaveError, busy, running, report, actions, activityVersion }: { project: ProjectView; autoSaveError: string | null; busy: boolean; running: boolean; report: SyncReport | null; actions: DetailActions; activityVersion: unknown }) {
   useLanguage();
   const { glyph, action } = STATUS[project.status];
   const linked = project.local_root !== null;
-  const notes = [...skipNotes(report?.skipped ?? []), ...skipNotes(project.unreadable)];
+  const notes = [...(autoSaveError ? [t("project.auto_save_failed", { error: errorText(autoSaveError) })] : []), ...skipNotes(report?.skipped ?? []), ...skipNotes(project.unreadable)];
 
   return (
     <article className="flex min-w-0 flex-1 flex-col gap-8 overflow-y-auto p-8">

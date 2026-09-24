@@ -12,7 +12,7 @@ use super::project_identity::{locate, ProjectKey};
 
 /// Machine-local mapping. A dir's identity is recorded here once and never re-derived
 /// from restored transcripts, whose `cwd` values belong to another machine.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Links {
     /// remote → local checkout root (one primary checkout per repo).
     pub repos: BTreeMap<String, PathBuf>,

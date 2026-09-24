@@ -19,6 +19,10 @@ export function SettingsPage({ onSignOut }: { onSignOut: () => void }) {
 
   useEffect(() => {
     api.getAppState().then(setApp, (e) => setStatus({ error: errorCode(e) }));
+    // The tray can switch auto-save too: pick that up without touching unsaved edits.
+    const onFocus = () => api.getAppState().then((fresh) => setApp((a) => a && { ...a, hooks: fresh.hooks }), () => {});
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, []);
 
   const act = async (work: () => Promise<unknown>, done: "saved" | null = "saved") => {
@@ -55,6 +59,22 @@ export function SettingsPage({ onSignOut }: { onSignOut: () => void }) {
           <input type="checkbox" className="accent-carbon-ink" checked={app.autostart} onChange={(e) => edit({ autostart: e.target.checked })} />
           {t("settings.autostart")}
         </label>
+        <div className="flex flex-col gap-1">
+          <label className="flex items-center gap-3 text-body text-graphite">
+            <input
+              type="checkbox"
+              className="accent-carbon-ink"
+              checked={app.hooks === "installed" || app.hooks === "stale_path"}
+              disabled={busy || app.hooks === "malformed"}
+              onChange={(e) => act(async () => {
+                const fresh = await api.setAutoSave(e.target.checked);
+                setApp((a) => a && { ...a, hooks: fresh.hooks });
+              })}
+            />
+            {t("settings.auto_save")}
+          </label>
+          <span className="pl-7 text-caption text-ashen">{t(app.hooks === "malformed" ? "settings.auto_save_malformed" : "settings.auto_save_hint")}</span>
+        </div>
         <Button className="self-start" onClick={save} disabled={busy || app.machine_name.trim().length === 0}>
           {busy ? t("common.working") : t("settings.save")}
         </Button>

@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
 use crate::app_state::AppState;
+use crate::auto_save;
 use crate::dashboard;
 use crate::engine::error::Error;
 use crate::engine::maintenance;
@@ -23,10 +24,19 @@ pub fn spawn(app: AppHandle, state: Arc<AppState>) {
         let started = Instant::now();
         let mut storage_checked = Instant::now();
         let mut auth_reported = false;
+        let mut activity_seen = None;
         loop {
             let offline = dashboard::cache(&state).view.as_ref().is_some_and(|v| v.offline);
             std::thread::sleep(if offline { OFFLINE_EVERY } else { EVERY });
             let Some(engine) = state.engine() else { continue };
+            if auto_save::retry_stale(&engine) {
+                dashboard::publish(&app, &state, true);
+            }
+            // A hook worker (another process) wrote an outcome, e.g. a failed auto-save.
+            let activity = std::fs::metadata(engine.cfg.activity_file()).and_then(|m| m.modified()).ok();
+            if std::mem::replace(&mut activity_seen, activity).is_some_and(|seen| Some(seen) != activity) {
+                dashboard::publish(&app, &state, false);
+            }
             if !engine.repo.dir().join(".git").exists() {
                 continue; // the dashboard has not fetched yet
             }
@@ -37,7 +47,7 @@ pub fn spawn(app: AppHandle, state: Arc<AppState>) {
                     let known = engine.repo.last_snapshot();
                     let shown = dashboard::cache(&state).sha.clone();
                     if head != known || shown != known || offline {
-                        dashboard::publish(&app, &state);
+                        dashboard::publish(&app, &state, true);
                     }
                 }
                 Err(Error::Network(_) | Error::GitTimeout { .. }) => dashboard::mark_offline(&app, &state),
@@ -67,6 +77,7 @@ pub fn spawn(app: AppHandle, state: Arc<AppState>) {
 fn recheck_storage(app: &AppHandle, state: &AppState) {
     match storage_check::check(&state.app_dir, &state.settings()) {
         Ok(check) if check.state != StorageState::Ready => {
+            crate::hook_worker::set_storage_blocked(&state.app_dir, true);
             state.drop_engine();
             let _ = app.emit("storage-changed", ());
         }

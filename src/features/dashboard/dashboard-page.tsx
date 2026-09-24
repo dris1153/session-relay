@@ -103,7 +103,7 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
         {page === "settings" ? (
           <SettingsPage onSignOut={onSignOut} />
         ) : project ? (
-          <ProjectDetailPane project={project} busy={busy !== null} running={busy === project.key_hash} report={reports[project.key_hash] ?? null} actions={actions(project)} activityVersion={activityVersion} />
+          <ProjectDetailPane project={project} autoSaveError={data?.auto_save_failures.find(([key]) => key === project.key_hash)?.[1] ?? null} busy={busy !== null} running={busy === project.key_hash} report={reports[project.key_hash] ?? null} actions={actions(project)} activityVersion={activityVersion} />
         ) : data ? (
           <p className="flex-1 p-8 text-body text-ashen">{t("dashboard.empty", { unmanaged: data.unmanaged })}</p>
         ) : listStatus === "loading" ? (

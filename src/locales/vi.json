@@ -61,6 +61,7 @@
 
   "onboarding.machine.title": "Máy này",
   "onboarding.machine.lead": "Tên máy hiện trong lịch sử lưu. Thư mục làm việc giúp tìm lại repo khi chuyển máy.",
+  "onboarding.machine.auto_save": "Bật tự lưu (khuyên dùng)",
   "onboarding.machine.finish": "Hoàn tất",
 
   "errors.unknown": "Có lỗi xảy ra ({code}).",
@@ -111,6 +112,7 @@
   "project.more": "Thao tác khác",
   "project.force_local": "Lưu đè cloud",
   "project.force_remote": "Sao chép đè local",
+  "project.auto_save_failed": "Lần tự lưu gần nhất thất bại: {error}",
   "project.open_folder": "Mở thư mục",
   "project.copy_resume": "Sao chép lệnh claude --resume",
 
@@ -181,6 +183,9 @@
   "settings.claude_home": "Thư mục dữ liệu Claude",
   "settings.workspace_roots": "Thư mục làm việc",
   "settings.autostart": "Khởi động cùng Windows",
+  "settings.auto_save": "Tự lưu sau mỗi lượt trả lời của Claude",
+  "settings.auto_save_hint": "Thêm hook vào settings.json của Claude; tắt thì gỡ ra. Phiên được lưu khoảng 2 phút sau lượt trả lời cuối.",
+  "settings.auto_save_malformed": "Không đọc được settings.json của Claude hoặc file không hợp lệ, nên chưa bật được tự lưu.",
   "settings.save": "Lưu cài đặt",
   "settings.saved": "Đã lưu.",
   "settings.language": "Ngôn ngữ",
@@ -194,5 +199,6 @@
 
   "tray.open": "Mở Session Relay",
   "tray.save_all": "Lưu tất cả",
+  "tray.auto_save": "Tự lưu",
   "tray.quit": "Thoát"
 }

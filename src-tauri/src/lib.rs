@@ -1,11 +1,15 @@
 pub mod app_paths;
 pub mod app_state;
+mod auto_save;
 mod autostart;
 pub mod commands;
 mod dashboard;
 pub mod engine;
 pub mod git_credential;
+pub mod hook;
+pub mod hook_worker;
 pub mod login;
+pub mod pending;
 mod tray;
 mod watcher;
 
@@ -28,12 +32,12 @@ pub fn run() {
         .setup(move |app| {
             let handle = app.handle().clone();
             let _ = state.app.set(handle.clone());
-            let settings = state.settings();
-            tray::build(&handle, settings.language.as_deref().unwrap_or("en"))?;
+            tray::build(&handle)?;
             if !std::env::args().any(|a| a == autostart::MINIMIZED_ARG) {
                 tray::show_main(&handle);
             }
             restore(&state);
+            auto_save::repair_stale_path(&state);
             watcher::spawn(handle, Arc::clone(&state));
             Ok(())
         })
@@ -53,6 +57,7 @@ pub fn run() {
             commands::setup::create_key,
             commands::setup::unlock_key,
             commands::settings::save_settings,
+            commands::settings::set_auto_save,
             commands::dashboard::list_projects,
             commands::dashboard::local_projects,
             commands::dashboard::project_activity,

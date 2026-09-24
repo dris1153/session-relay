@@ -6,6 +6,7 @@ pub mod auth;
 pub mod backup;
 pub mod base;
 mod chunker;
+pub mod claude_hook_config;
 pub mod context;
 pub mod crypto;
 pub mod error;

@@ -10,6 +10,7 @@ use tauri::{AppHandle, Emitter, State};
 
 use super::{blocking, CmdResult};
 use crate::app_state::AppState;
+use crate::engine::claude_hook_config::HookStatus;
 use crate::engine::crypto::Keys;
 use crate::engine::error::Error;
 use crate::engine::lock::SyncLock;
@@ -33,6 +34,7 @@ pub struct AppStateDto {
     workspace_roots: Vec<PathBuf>,
     language: Option<String>,
     autostart: bool,
+    hooks: HookStatus,
 }
 
 fn git_version() -> Option<(String, bool)> {
@@ -58,6 +60,7 @@ pub(super) fn app_state_dto(state: &AppState) -> crate::engine::error::Result<Ap
         workspace_roots: s.workspace_roots,
         language: s.language,
         autostart: s.autostart,
+        hooks: crate::auto_save::status(state),
     })
 }
 
@@ -100,11 +103,13 @@ pub async fn check_storage(state: State<'_, Arc<AppState>>) -> CmdResult<Storage
     let state = Arc::clone(&state);
     blocking(move || {
         let check = checked_repo(&state)?;
-        if check.state == StorageState::Ready && state.engine().is_none() {
+        let ready = check.state == StorageState::Ready;
+        // Public, gone or re-keyed: stop syncing (hook workers too) until onboarding passes again.
+        crate::hook_worker::set_storage_blocked(&state.app_dir, !ready);
+        if ready && state.engine().is_none() {
             let identity = secrets::load_identity()?.ok_or(Error::NotLoggedIn)?;
             state.install_engine(Keys::parse(identity.expose_secret())?)?;
-        } else if check.state != StorageState::Ready {
-            // Public, gone or re-keyed: stop syncing until onboarding passes again.
+        } else if !ready {
             state.drop_engine();
         }
         Ok(check)

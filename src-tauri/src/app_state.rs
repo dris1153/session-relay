@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -62,10 +62,7 @@ impl AppState {
     }
 
     pub fn install_engine(&self, keys: Keys) -> Result<()> {
-        let settings = self.settings();
-        let repo = self.repo()?;
-        let cfg = CoreConfig { app_dir: self.app_dir.clone(), claude_home: settings.claude_home, machine_name: settings.machine_name };
-        let engine = Engine::new(cfg, keys, repo.url(), credential_helper(), false);
+        let engine = build_engine(&self.app_dir, &self.settings(), keys)?;
         if let Some(app) = self.app.get().cloned() {
             engine.repo.progress.set(move |p| {
                 let _ = app.emit("sync-progress", p);
@@ -94,4 +91,11 @@ impl AppState {
     pub fn drop_engine(&self) {
         *self.engine.lock().expect("engine lock") = None;
     }
+}
+
+/// The engine for these settings and key; hook workers build one without a window.
+pub fn build_engine(app_dir: &Path, settings: &Settings, keys: Keys) -> Result<Engine> {
+    let repo = settings.repo.clone().ok_or_else(|| Error::Invalid("no storage repository selected".into()))?;
+    let cfg = CoreConfig { app_dir: app_dir.to_path_buf(), claude_home: settings.claude_home.clone(), machine_name: settings.machine_name.clone() };
+    Ok(Engine::new(cfg, keys, repo.url(), credential_helper(), false))
 }

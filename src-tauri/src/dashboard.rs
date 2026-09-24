@@ -7,7 +7,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 use crate::app_state::AppState;
-use crate::engine::activity::Source;
+use crate::engine::activity::{self, Source};
 use crate::engine::error::{Error, Result};
 use crate::engine::evaluate::ProjectStatus;
 use crate::engine::links::Links;
@@ -44,12 +44,14 @@ pub struct Dashboard {
     /// The last fetch failed on the network: statuses are against the last snapshot seen.
     pub offline: bool,
     pub fetched_at: Option<DateTime<Utc>>,
+    /// Projects whose last auto-save failed (key hash, error code).
+    pub auto_save_failures: Vec<(String, String)>,
 }
 
 impl Dashboard {
-    /// Something in the cloud is newer than here: the tray shows it.
+    /// Something in the cloud is newer than here, or an auto-save failed: the tray shows it.
     pub fn needs_attention(&self) -> bool {
-        self.projects.iter().any(|p| matches!(p.status, ProjectStatus::RemoteAhead | ProjectStatus::Both | ProjectStatus::Diverged))
+        !self.auto_save_failures.is_empty() || self.projects.iter().any(|p| matches!(p.status, ProjectStatus::RemoteAhead | ProjectStatus::Both | ProjectStatus::Diverged))
     }
 
     pub fn key(&self, key_hash: &str) -> Result<&ProjectView> {
@@ -107,6 +109,8 @@ pub fn load(state: &AppState, fetch: bool) -> Result<Dashboard> {
     view.unmanaged = overview.unmanaged_dirs.len();
     view.secondary = overview.secondary_dirs.len();
     view.errors = overview.errors;
+    // Only projects on screen: a failure for an unlinked one would keep the tray alarmed forever.
+    view.auto_save_failures = activity::failed_auto_saves(&engine.cfg.activity_file()).into_iter().filter(|(key, _)| view.projects.iter().any(|p| &p.key_hash == key)).collect();
     let mut cache = cache(state);
     if cache.generation == generation {
         cache.view = Some(view.clone());
@@ -127,9 +131,10 @@ fn project_view(p: overview::ProjectSummary, links: &Links) -> ProjectView {
     ProjectView { local_root: links.repos.get(&p.key.remote).cloned(), key_hash: p.key_hash, remote: p.key.remote, owner, name, subpath: p.key.subpath, status: p.status, files: p.files, unreadable: p.unreadable }
 }
 
-/// Refreshes and tells the window. Failures only log: this runs after the real work.
-pub fn publish(app: &AppHandle, state: &AppState) {
-    match load(state, true) {
+/// Refreshes (`fetch`: from GitHub too) and tells the window. Failures only log: this runs
+/// after the real work.
+pub fn publish(app: &AppHandle, state: &AppState, fetch: bool) {
+    match load(state, fetch) {
         Ok(view) => {
             let _ = app.emit("projects-changed", view);
         }

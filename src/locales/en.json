@@ -61,6 +61,7 @@
 
   "onboarding.machine.title": "This machine",
   "onboarding.machine.lead": "The machine name appears in save history. Workspace folders help find your repositories on a new machine.",
+  "onboarding.machine.auto_save": "Turn on auto-save (recommended)",
   "onboarding.machine.finish": "Finish",
 
   "errors.unknown": "Something went wrong ({code}).",
@@ -111,6 +112,7 @@
   "project.more": "More actions",
   "project.force_local": "Overwrite the cloud with this machine",
   "project.force_remote": "Overwrite this machine with the cloud",
+  "project.auto_save_failed": "The last auto-save failed: {error}",
   "project.open_folder": "Open folder",
   "project.copy_resume": "Copy the claude --resume command",
 
@@ -181,6 +183,9 @@
   "settings.claude_home": "Claude data folder",
   "settings.workspace_roots": "Workspace folders",
   "settings.autostart": "Start with Windows",
+  "settings.auto_save": "Save automatically after each Claude reply",
+  "settings.auto_save_hint": "Adds a hook to Claude's settings.json; turning it off removes it. The session is saved about 2 minutes after the last reply.",
+  "settings.auto_save_malformed": "Claude's settings.json cannot be read or is not valid JSON, so auto-save cannot be turned on.",
   "settings.save": "Save settings",
   "settings.saved": "Saved.",
   "settings.language": "Language",
@@ -194,5 +199,6 @@
 
   "tray.open": "Open Session Relay",
   "tray.save_all": "Save all",
+  "tray.auto_save": "Auto-save",
   "tray.quit": "Quit"
 }

@@ -73,6 +73,9 @@ pub fn run() {
             commands::workspace::cancel_clone,
             commands::session_view::open_session,
             commands::session_view::session_detail,
+            commands::session_tools::search_session,
+            commands::session_tools::compare_sides,
+            commands::session_tools::export_session,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

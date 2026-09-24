@@ -141,6 +141,8 @@ export type SessionMeta = {
   off_branch: number;
 };
 export type SessionView = { key_hash: string; session_id: string; side: Side; meta: SessionMeta; items: Item[] };
+export type Hit = { item: number; block: number | null };
+export type Divergence = { local: number | null; cloud: number | null };
 /** `gone`: a saved output Claude has since removed. */
 export type Detail = { kind: "text"; text: string; truncated: boolean } | { kind: "session"; meta: SessionMeta; items: Item[] } | { kind: "image"; data_uri: string } | { kind: "gone" };
 
@@ -177,4 +179,8 @@ export const api = {
   cancelClone: () => invoke<void>("cancel_clone"),
   openSession: (keyHash: string, sessionId: string, side: Side) => invoke<SessionView>("open_session", { keyHash, sessionId, side }),
   sessionDetail: (keyHash: string, sessionId: string, side: Side, reference: string) => invoke<Detail>("session_detail", { keyHash, sessionId, side, reference }),
+  searchSession: (keyHash: string, sessionId: string, side: Side, query: string, system: boolean) => invoke<Hit[]>("search_session", { keyHash, sessionId, side, query, system }),
+  compareSides: (keyHash: string, sessionId: string) => invoke<Divergence>("compare_sides", { keyHash, sessionId }),
+  /** Opens a save dialog; resolves to the written path, or null when cancelled. */
+  exportSession: (keyHash: string, sessionId: string, side: Side, title: string) => invoke<string | null>("export_session", { keyHash, sessionId, side, title }),
 };

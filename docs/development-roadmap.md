@@ -24,7 +24,7 @@ Target of the first release (v0.1.0): Windows, one GitHub account, save and rest
 
 ## v0.2.0 (planned)
 
-- Session transcript viewer: click a session to read the whole conversation (messages, tool calls with results and diffs, nested subagents, metadata), local or cloud copy, with search, outline, Markdown export and a diverged-copy compare. Plan: `plans/260924-1148-session-transcript-viewer/`, starts after the v0.1.0 E2E.
+- Session transcript viewer (done, unreleased): click a session to read the whole conversation (messages, tool calls with results and diffs, nested subagents, metadata), local or cloud copy, with search, outline, Markdown export and a diverged-copy compare. Plan: `plans/260924-1148-session-transcript-viewer/`, starts after the v0.1.0 E2E.
 
 ## Deferred
 

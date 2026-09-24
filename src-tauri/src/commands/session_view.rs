@@ -6,9 +6,11 @@ use tauri::State;
 use super::{blocking, CmdResult};
 use crate::app_state::AppState;
 use crate::dashboard;
-use crate::engine::error::Error;
+use crate::engine::context::Engine;
+use crate::engine::error::{Error, Result};
+use crate::engine::project_identity::ProjectKey;
 use crate::engine::transcript::source::{self, Side};
-use crate::engine::transcript::{self, cut, Detail, Item, Resolved, SessionMeta, DETAIL_MAX};
+use crate::engine::transcript::{self, cut, Detail, Item, Resolved, SessionMeta, Transcript, DETAIL_MAX};
 
 #[derive(Serialize)]
 pub struct SessionView {
@@ -30,19 +32,58 @@ pub enum DetailView {
     Gone,
 }
 
+/// One session of one project on one side, as the viewer commands address it.
+pub(super) struct Target {
+    pub engine: Arc<Engine>,
+    pub key: ProjectKey,
+    pub key_hash: String,
+    pub session_id: String,
+    pub side: Side,
+}
+
+impl Target {
+    pub fn new(state: &AppState, key_hash: String, session_id: String, side: Side) -> Result<Self> {
+        let engine = state.engine().ok_or(Error::NotLoggedIn)?;
+        let key = dashboard::project_key(state, &key_hash)?;
+        Ok(Self { engine, key, key_hash, session_id, side })
+    }
+
+    /// The session's parse, reread only when its file changed.
+    pub fn open(&self, state: &AppState) -> Result<Arc<Transcript>> {
+        let cached = state.transcripts.find(&self.key_hash, &self.session_id, self.side, "");
+        match source::load(&self.engine, &self.key, &self.session_id, self.side, cached.as_ref().map(|(s, _)| s.as_str()))? {
+            Some(loaded) => Ok(state.transcripts.insert(&self.key_hash, &self.session_id, self.side, "", loaded.signature, transcript::parse(&loaded.bytes))),
+            None => Ok(cached.expect("a known signature comes from the cache").1),
+        }
+    }
+
+    /// The parse the viewer shows (details and search must use the same item indexes); read
+    /// again only when it is no longer cached.
+    pub fn shown(&self, state: &AppState) -> Result<Arc<Transcript>> {
+        match state.transcripts.find(&self.key_hash, &self.session_id, self.side, "") {
+            Some((_, t)) => Ok(t),
+            None => self.open(state),
+        }
+    }
+
+    /// A subagent's parse; async agents keep writing after the call, so it is reread on change.
+    pub fn open_agent(&self, state: &AppState, scope: &str, id: &str) -> Result<Arc<Transcript>> {
+        let cached = state.transcripts.find(&self.key_hash, &self.session_id, self.side, scope);
+        match source::load_rel(&self.engine, &self.key, &self.session_id, self.side, &format!("subagents/agent-{id}.jsonl"), cached.as_ref().map(|(s, _)| s.as_str()))? {
+            Some(loaded) => Ok(state.transcripts.insert(&self.key_hash, &self.session_id, self.side, scope, loaded.signature, transcript::parse_agent(&loaded.bytes))),
+            None => Ok(cached.expect("a known signature comes from the cache").1),
+        }
+    }
+}
+
 /// The current branch of a session, from this machine's file or the cloud copy.
 #[tauri::command]
 pub async fn open_session(state: State<'_, Arc<AppState>>, key_hash: String, session_id: String, side: Side) -> CmdResult<SessionView> {
     let state = Arc::clone(&state);
     blocking(move || {
-        let engine = state.engine().ok_or(Error::NotLoggedIn)?;
-        let key = dashboard::project_key(&state, &key_hash)?;
-        let cached = state.transcripts.find(&key_hash, &session_id, side, "");
-        let transcript = match source::load(&engine, &key, &session_id, side, cached.as_ref().map(|(s, _)| s.as_str()))? {
-            Some(loaded) => state.transcripts.insert(&key_hash, &session_id, side, "", loaded.signature, transcript::parse(&loaded.bytes)),
-            None => cached.expect("a known signature comes from the cache").1,
-        };
-        Ok(SessionView { meta: transcript.meta.clone(), items: transcript.view(), key_hash, session_id, side })
+        let target = Target::new(&state, key_hash, session_id, side)?;
+        let transcript = target.open(&state)?;
+        Ok(SessionView { meta: transcript.meta.clone(), items: transcript.view(), key_hash: target.key_hash, session_id: target.session_id, side })
     })
     .await
 }
@@ -52,21 +93,11 @@ pub async fn open_session(state: State<'_, Arc<AppState>>, key_hash: String, ses
 pub async fn session_detail(state: State<'_, Arc<AppState>>, key_hash: String, session_id: String, side: Side, reference: String) -> CmdResult<DetailView> {
     let state = Arc::clone(&state);
     blocking(move || {
-        let engine = state.engine().ok_or(Error::NotLoggedIn)?;
-        let key = dashboard::project_key(&state, &key_hash)?;
-        let (_, root) = state.transcripts.find(&key_hash, &session_id, side, "").ok_or(Error::SessionNotFound)?;
-        // Subagents are reread when their file changed: async agents keep writing after the call.
-        let resolved = transcript::resolve(root, &reference, |scope, id| {
-            let cached = state.transcripts.find(&key_hash, &session_id, side, scope);
-            match source::load_rel(&engine, &key, &session_id, side, &format!("subagents/agent-{id}.jsonl"), cached.as_ref().map(|(s, _)| s.as_str()))? {
-                Some(loaded) => Ok(state.transcripts.insert(&key_hash, &session_id, side, scope, loaded.signature, transcript::parse_agent(&loaded.bytes))),
-                None => Ok(cached.expect("a known signature comes from the cache").1),
-            }
-        })?;
-        Ok(match resolved {
+        let target = Target::new(&state, key_hash, session_id, side)?;
+        Ok(match transcript::resolve(target.shown(&state)?, &reference, |scope, id| target.open_agent(&state, scope, id))? {
             Resolved::Agent(t) => DetailView::Session { meta: Box::new(t.meta.clone()), items: t.view() },
             Resolved::Detail(Detail::Text(text)) => text_view(&text),
-            Resolved::Detail(Detail::File(rel)) => match source::load_rel(&engine, &key, &session_id, side, &rel, None) {
+            Resolved::Detail(Detail::File(rel)) => match source::load_rel(&target.engine, &target.key, &target.session_id, side, &rel, None) {
                 Ok(loaded) => text_view(&String::from_utf8_lossy(&loaded.map(|l| l.bytes).unwrap_or_default())),
                 Err(Error::SessionNotFound) => DetailView::Gone,
                 Err(e) => return Err(e),

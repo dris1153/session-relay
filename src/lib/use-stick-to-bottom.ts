@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 
 /** Within this distance of the end, the box counts as "at the end" and follows new height. */
 const NEAR_PX = 80;
@@ -7,8 +7,7 @@ const FAR_PX = 600;
 
 /** A scroll box that opens at its end and stays there until the user scrolls away. Items below
  *  keep changing height as they render (`content-visibility`), so "the end" moves for a while. */
-export function useStickToBottom(ready: boolean) {
-  const box = useRef<HTMLDivElement>(null);
+export function useStickToBottom(ready: boolean, box: RefObject<HTMLDivElement | null>) {
   const pinned = useRef(true);
   const [far, setFar] = useState(false);
 
@@ -17,7 +16,7 @@ export function useStickToBottom(ready: boolean) {
     if (!el) return;
     pinned.current = true;
     el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
-  }, []);
+  }, [box]);
 
   useLayoutEffect(() => {
     if (ready) toEnd();
@@ -41,7 +40,7 @@ export function useStickToBottom(ready: boolean) {
       follow.disconnect();
       el.removeEventListener("scroll", onScroll);
     };
-  }, [ready]);
+  }, [ready, box]);
 
-  return { box, far, toEnd };
+  return { far, toEnd };
 }

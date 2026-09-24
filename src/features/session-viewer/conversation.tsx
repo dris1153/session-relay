@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type RefObject } from "react";
 import { t } from "../../lib/i18n";
 import { useStickToBottom } from "../../lib/use-stick-to-bottom";
 import type { LoadDetail } from "./tool-block";
@@ -17,9 +17,10 @@ function toTurns(entries: Entry[]): Turn[] {
   return turns;
 }
 
-/** The scrolling conversation: opens at the newest message, prompts stick while their turn is read. */
-export function Conversation({ entries, detail }: { entries: Entry[]; detail: LoadDetail }) {
-  const { box, far, toEnd } = useStickToBottom(entries.length > 0);
+/** The scrolling conversation: opens at the newest message, prompts stick while their turn is read.
+ *  `divergeAt`: index of the first item the other copy of the session does not share. */
+export function Conversation({ entries, detail, box, divergeAt }: { entries: Entry[]; detail: LoadDetail; box: RefObject<HTMLDivElement | null>; divergeAt: number | null }) {
+  const { far, toEnd } = useStickToBottom(entries.length > 0, box);
   const turns = useMemo(() => toTurns(entries), [entries]);
 
   return (
@@ -27,7 +28,7 @@ export function Conversation({ entries, detail }: { entries: Entry[]; detail: Lo
       <div ref={box} className="h-full overflow-y-auto px-8 pb-6">
         <ol className="mx-auto flex max-w-[820px] flex-col gap-6 pt-6">
           {turns.map((turn) => (
-            <TurnSection key={(turn.prompt ?? turn.rest[0]).index} prompt={turn.prompt} rest={turn.rest} detail={detail} box={box} />
+            <TurnSection key={(turn.prompt ?? turn.rest[0]).index} prompt={turn.prompt} rest={turn.rest} detail={detail} box={box} divergeAt={divergeAt} />
           ))}
         </ol>
       </div>

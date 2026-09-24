@@ -142,6 +142,7 @@ Hooks are registered in `<claude_home>/settings.json` (both events, one group ea
 | `delete_remote_session(key_hash, session_id)` · `open_project_folder(key_hash)` · `clear_local_data` | () |
 | `scan_workspaces` · `clone_project(key_hash, root)` · `cancel_clone` | `Checkout { remote, path }[]` · destination path · () |
 | `open_session(key_hash, session_id, side: local\|cloud)` · `session_detail(…, reference)` | `SessionView { meta, items }` (tool input/output cut to 2 KB / 8 KB previews, diffs to 400 lines) · `Detail` for a ref path such as `agent:<id>/out:<tool id>`: `text` (≤ 2 MB) \| `session` (a subagent) \| `image` (data URI) \| `gone` |
+| `search_session(…, query, system)` · `compare_sides(key_hash, session_id)` · `export_session(…, title)` | `Hit { item, block? }[]` · `{ local?, cloud? }` first differing item per copy · written path or null (native save dialog opened by Rust) |
 
 `ProjectView { key_hash, remote, owner, name, subpath, status, local_root?, files: FileRow[], unreadable }`; `FileRow { rel, state, conflict, title?, size?, saved_by?, saved_at?, local_size?, local_modified? }`.
 

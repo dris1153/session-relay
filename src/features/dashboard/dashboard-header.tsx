@@ -1,6 +1,7 @@
 import { Button } from "../../components/button";
+import { ErrorNote } from "../../components/onboarding-card";
 import { relativeTime } from "../../lib/format";
-import { t, useLanguage } from "../../lib/i18n";
+import { errorText, t, useLanguage } from "../../lib/i18n";
 import type { Dashboard, Progress } from "../../lib/tauri-commands";
 
 /** `ratio` null: a step without a measure, shown as a moving bar. */
@@ -40,5 +41,19 @@ export function DashboardHeader({ data, progress, working, canSaveAll, onSaveAll
         </div>
       )}
     </header>
+  );
+}
+
+export function ErrorBanner({ error, onDismiss }: { error: string | null; onDismiss: () => void }) {
+  if (!error) return null;
+  return (
+    <div className="flex items-start gap-3 px-8 pt-4">
+      <div className="flex-1">
+        <ErrorNote message={errorText(error)} />
+      </div>
+      <button type="button" onClick={onDismiss} className="rounded-control px-2 py-3 text-body text-ashen hover:text-carbon-ink">
+        {t("common.dismiss")}
+      </button>
+    </div>
   );
 }

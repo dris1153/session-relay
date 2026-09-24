@@ -2,8 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { Button } from "../../components/button";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { pickFolder } from "../../components/folder-fields";
-import { ErrorNote } from "../../components/onboarding-card";
-import { errorText, t, useLanguage } from "../../lib/i18n";
+import { t, useLanguage } from "../../lib/i18n";
 import { resumeCommand, sessionSide } from "../../lib/sessions";
 import { needsAttention, STATUS } from "../../lib/status-copy";
 import { api, errorCode, type ProjectView, type SyncMode, type SyncReport, type User } from "../../lib/tauri-commands";
@@ -12,7 +11,7 @@ import { useWorkspaceScan } from "../../lib/use-workspace-scan";
 import type { ViewedSession } from "../session-viewer/session-viewer";
 import { SettingsPage } from "../settings/settings-page";
 import { ConflictDialog } from "./conflict-dialog";
-import { DashboardHeader } from "./dashboard-header";
+import { DashboardHeader, ErrorBanner } from "./dashboard-header";
 import { LinkProjectPanel } from "./link-project-panel";
 import { ProjectDetailPane, type DetailActions } from "./project-detail-pane";
 import { DetailSkeleton } from "./loading-skeleton";
@@ -90,7 +89,7 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
   const actions = (p: ProjectView): DetailActions => ({
     primary: () => primary(p),
     force: (mode) => setConfirm({ title: t(`confirm.${mode}_title`), body: t(`confirm.${mode}_body`), confirm: t(`project.${mode}`), action: () => sync(p, mode) }),
-    openSession: (row) => setViewing({ keyHash: p.key_hash, sessionId: row.id, side: sessionSide(row.transcript ?? row.state) }),
+    openSession: (row) => setViewing({ keyHash: p.key_hash, sessionId: row.id, side: sessionSide(row.transcript ?? row.state), state: row.transcript }),
     restoreSession: (row) => sync(p, "auto", row.files),
     deleteSession: (row) =>
       setConfirm({
@@ -114,16 +113,7 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
   return (
     <div className="flex h-screen flex-col">
       <DashboardHeader data={data} progress={progress} working={busy !== null} canSaveAll={projects.some((p) => p.status === "local_ahead" || p.status === "both")} onSaveAll={saveAll} />
-      {error && (
-        <div className="flex items-start gap-3 px-8 pt-4">
-          <div className="flex-1">
-            <ErrorNote message={errorText(error)} />
-          </div>
-          <button type="button" onClick={dismissError} className="rounded-control px-2 py-3 text-body text-ashen hover:text-carbon-ink">
-            {t("common.dismiss")}
-          </button>
-        </div>
-      )}
+      <ErrorBanner error={error} onDismiss={dismissError} />
       <div className="flex min-h-0 flex-1">
         <ProjectSidebar
           projects={projects}
@@ -141,7 +131,7 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
           <SettingsPage onSignOut={onSignOut} />
         ) : viewing && viewing.keyHash === project?.key_hash ? (
           <Suspense fallback={<DetailSkeleton />}>
-            <SessionViewer key={`${viewing.keyHash}:${viewing.sessionId}:${viewing.side}`} session={viewing} onBack={() => setViewing(null)} />
+            <SessionViewer key={`${viewing.keyHash}:${viewing.sessionId}:${viewing.side}`} session={viewing} onBack={() => setViewing(null)} onSide={(side) => setViewing({ ...viewing, side })} />
           </Suspense>
         ) : project ? (
           <ProjectDetailPane project={project} autoSaveError={data?.auto_save_failures.find(([key]) => key === project.key_hash)?.[1] ?? null} busy={busy !== null} running={busy === project.key_hash} report={reports[project.key_hash] ?? null} actions={actions(project)} activityVersion={activityVersion}>
@@ -179,6 +169,10 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
           if (target) sync(target, mode, [rel]);
         }}
         onClose={() => setResolving(null)}
+        onView={(rel) => {
+          setViewing({ keyHash: resolving!, sessionId: rel.split("/")[0].replace(/\.jsonl$/, ""), side: "local", state: "diverged" });
+          setResolving(null);
+        }}
       />
       <ConfirmDialog
         open={confirm !== null}

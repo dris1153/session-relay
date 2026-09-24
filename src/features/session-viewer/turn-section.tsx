@@ -9,7 +9,7 @@ export type Entry = { item: Item; index: number };
 
 /** One turn: a prompt and everything until the next one. While the prompt is scrolled out above,
  *  a compact copy sticks to the top of the box; the next turn's copy pushes it away. */
-export function TurnSection({ prompt, rest, detail, box }: { prompt: Entry | null; rest: Entry[]; detail: LoadDetail; box: RefObject<HTMLDivElement | null> }) {
+export function TurnSection({ prompt, rest, detail, box, divergeAt }: { prompt: Entry | null; rest: Entry[]; detail: LoadDetail; box: RefObject<HTMLDivElement | null>; divergeAt: number | null }) {
   const full = useRef<HTMLLIElement>(null);
   const [above, setAbove] = useState(false);
 
@@ -41,11 +41,20 @@ export function TurnSection({ prompt, rest, detail, box }: { prompt: Entry | nul
         </div>
       )}
       <ol className="flex flex-col gap-6">
-        {prompt && <MessageItem item={prompt.item} detail={detail} anchor={full} />}
-        {rest.map(({ item, index }) => (
-          <MessageItem key={index} item={item} detail={detail} />
-        ))}
+        {prompt && divergeAt === prompt.index && <DivergeMarker />}
+        {prompt && <MessageItem item={prompt.item} detail={detail} index={prompt.index} anchor={full} />}
+        {rest.flatMap(({ item, index }) => [...(index === divergeAt ? [<DivergeMarker key={`d${index}`} />] : []), <MessageItem key={index} item={item} detail={detail} index={index} />])}
       </ol>
+    </li>
+  );
+}
+
+function DivergeMarker() {
+  return (
+    <li role="separator" className="flex items-center gap-3 text-caption font-medium text-carbon-ink">
+      <span className="h-0.5 flex-1 bg-graphite" />
+      {t("viewer.diverge_marker")}
+      <span className="h-0.5 flex-1 bg-graphite" />
     </li>
   );
 }

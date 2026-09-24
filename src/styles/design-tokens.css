@@ -78,3 +78,9 @@
     cursor: not-allowed;
   }
 }
+
+/* Search matches in the session viewer (CSS Custom Highlight API); monochrome like the rest of the data. */
+::highlight(viewer-search) {
+  background-color: rgb(18 18 18 / 0.14);
+  color: inherit;
+}

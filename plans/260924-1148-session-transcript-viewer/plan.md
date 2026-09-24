@@ -1,7 +1,7 @@
 ---
 title: "Session transcript viewer (v0.2.0)"
 description: "Click a session to read the whole conversation: messages, tool calls with results, diffs, nested subagents, metadata; local or cloud copy; search, outline, export, diverged compare."
-status: in-progress
+status: completed
 priority: P2
 effort: 3.5d
 branch: main
@@ -25,7 +25,7 @@ Design: [brainstorm report](../reports/brainstorm-260924-1148-session-transcript
 | 1 | [Parser, IPC and basic viewer](./phase-01-parser-ipc-and-basic-viewer.md) | 1.5d | Complete |
 | 2 | [Diffs, persisted outputs, subagents, images](./phase-02-diffs-outputs-subagents-images.md) | 1d | Complete |
 | 2b | [Sticky prompt and open at the end](./phase-02b-sticky-prompt-and-open-at-end.md) | 0.5d | Complete |
-| 3 | [Search, outline, export, diverged compare](./phase-03-search-outline-export-compare.md) | 1d | Pending |
+| 3 | [Search, outline, export, diverged compare](./phase-03-search-outline-export-compare.md) | 1d | Complete |
 
 Sequential 1→2→3.
 
@@ -34,8 +34,9 @@ Sequential 1→2→3.
 |---|---|
 | `open_session(key_hash, session_id, side: local\|cloud)` | → `SessionView{key_hash, session_id, side, meta: SessionMeta, items: Item[]}` (`other_side` comes with phase 3) |
 | `session_detail(key_hash, session_id, side, ref)` | → `Detail` (phase 1: full tool input/output; phase 2: persisted output, subagent `SessionView`, image data URI) |
-| `search_session(key_hash, session_id, side, query)` | → `Hit[]{item, block?}` (phase 3) |
-| `export_session(key_hash, session_id, side, path)` | → () Markdown file at a path chosen in a save dialog (phase 3) |
+| `search_session(key_hash, session_id, side, query, system)` | → `Hit[]{item, block?}` |
+| `compare_sides(key_hash, session_id)` | → `{local?, cloud?}` index of the first item each copy does not share |
+| `export_session(key_hash, session_id, side, title)` | → written path, or null when the native save dialog was cancelled |
 
 `SessionMeta{title?, models[], version?, git_branch?, cwd?, started_at?, ended_at?, usage{input, output, cache_read, cache_creation}, prompts, tool_calls, off_branch}`.
 `Item = user{uuid, at, text, images} | assistant{uuid, at, model?, usage?, blocks[]} | event{uuid?, at?, event, noisy, text}`; `Block = text{text} | thinking{text?} | tool{id, name, summary, input, input_truncated, output?, output_truncated, is_error}` (phase 2 adds `diff`, `subagent`, image refs).

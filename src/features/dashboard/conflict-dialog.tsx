@@ -7,7 +7,7 @@ import type { FileRow } from "../../lib/tauri-commands";
 
 /** Files both machines changed: the user keeps one side per file; the other is backed up first.
  * `skipped`: why the last attempt left a file as it was (e.g. its Claude session is open). */
-export function ConflictDialog({ open, files, skipped, busy, onResolve, onClose }: { open: boolean; files: FileRow[]; skipped: [string, string][]; busy: boolean; onResolve: (rel: string, mode: "force_local" | "force_remote") => void; onClose: () => void }) {
+export function ConflictDialog({ open, files, skipped, busy, onResolve, onClose, onView }: { open: boolean; files: FileRow[]; skipped: [string, string][]; busy: boolean; onResolve: (rel: string, mode: "force_local" | "force_remote") => void; onClose: () => void; onView: (rel: string) => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
@@ -37,9 +37,17 @@ export function ConflictDialog({ open, files, skipped, busy, onResolve, onClose 
           const reason = skipped.find(([rel]) => rel === file.rel)?.[1];
           return (
           <li key={file.rel} className="flex flex-col gap-3 py-4">
-            <span className="truncate text-[15px] text-carbon-ink" title={file.rel}>
-              {file.title ?? file.rel}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="min-w-0 flex-1 truncate text-[15px] text-carbon-ink" title={file.rel}>
+                {file.title ?? file.rel}
+              </span>
+              {/* A transcript can be read on both sides first; the viewer marks where they part. */}
+              {!file.rel.includes("/") && (
+                <button type="button" onClick={() => onView(file.rel)} className="shrink-0 rounded-control px-2 py-1 text-body text-graphite underline decoration-mist underline-offset-4 hover:text-carbon-ink">
+                  {t("conflict.view")}
+                </button>
+              )}
+            </div>
             {reason && <span className="rounded-control bg-soft-stone px-3 py-2 text-caption text-carbon-ink">{skipReason(reason)}</span>}
             <div className="grid grid-cols-2 gap-3">
               <Side text={t("conflict.local", { size: file.local_size == null ? "–" : formatSize(file.local_size), time: file.local_modified ? relativeTime(file.local_modified) : "–" })} action={t("conflict.keep_local")} disabled={busy} onClick={() => onResolve(file.rel, "force_local")} />

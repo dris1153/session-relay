@@ -119,7 +119,9 @@ fn parse_real() {
     let diffs = count(&|b| matches!(b, Block::Tool { diff, .. } if !diff.is_empty()));
     let agents = count(&|b| matches!(b, Block::Tool { agent: Some(_), .. }));
     let saved = count(&|b| matches!(t.detail(&format!("out:{}", match b { Block::Tool { id, .. } => id.as_str(), _ => "" })), Some(Detail::File(_))));
-    println!("{} MB → {} items, parse {parsed:?}, view {:?}, view json {} KB, tools without result {unanswered}, diffs {diffs}, agents {agents}, saved outputs {saved}, meta {:?}", bytes.len() >> 20, t.items.len(), started.elapsed() - parsed, json.len() >> 10, t.meta);
+    let searched = std::time::Instant::now();
+    let none = t.search("zq-no-such-text-qz", true).len();
+    println!("{} MB → {} items, parse {parsed:?}, view json {} KB, search {:?} ({none} hits), tools without result {unanswered}, diffs {diffs}, agents {agents}, saved outputs {saved}, meta {:?}", bytes.len() >> 20, t.items.len(), json.len() >> 10, searched.elapsed(), t.meta);
 }
 
 #[test]

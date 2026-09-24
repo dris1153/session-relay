@@ -2,6 +2,7 @@ import type { Ref } from "react";
 import { formatClock, formatCount, formatDateTime } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import type { Block, Item } from "../../lib/tauri-commands";
+import { CopyButton } from "./copy-button";
 import { ImageThumbs } from "./image-thumbs";
 import { MarkdownText } from "./markdown-text";
 import { ToolBlock, type LoadDetail } from "./tool-block";
@@ -19,9 +20,10 @@ export function isShown(item: Item): boolean {
   return true;
 }
 
-/** `anchor`: the element to scroll back to (a turn's prompt). */
-export function MessageItem({ item, detail, anchor }: { item: Item; detail: LoadDetail; anchor?: Ref<HTMLLIElement> }) {
-  if (item.kind === "event") return <EventLine item={item} />;
+/** `index`: position in the whole session (search and outline find items by it); `anchor`: the
+ *  element to scroll back to (a turn's prompt). */
+export function MessageItem({ item, detail, index, anchor }: { item: Item; detail: LoadDetail; index?: number; anchor?: Ref<HTMLLIElement> }) {
+  if (item.kind === "event") return <EventLine item={item} index={index} />;
   const user = item.kind === "user";
   const heading = [
     t(user ? "viewer.you" : "viewer.claude"),
@@ -30,10 +32,13 @@ export function MessageItem({ item, detail, anchor }: { item: Item; detail: Load
     !user && item.usage && t("viewer.turn_tokens", { input: formatCount(item.usage.input + item.usage.cache_creation), output: formatCount(item.usage.output) }),
   ];
   return (
-    <li ref={anchor} className={`flex flex-col gap-2 ${LAZY}`}>
-      <p className="text-caption text-ashen" title={item.at ? formatDateTime(item.at) : undefined}>
-        {heading.filter(Boolean).join(" · ")}
-      </p>
+    <li ref={anchor} data-index={index} className={`group flex flex-col gap-2 ${LAZY}`}>
+      <div className="flex items-center gap-2">
+        <p className="text-caption text-ashen" title={item.at ? formatDateTime(item.at) : undefined}>
+          {heading.filter(Boolean).join(" · ")}
+        </p>
+        <CopyButton item={item} />
+      </div>
       {user ? (
         <div className="rounded-card bg-soft-stone px-5 py-4">
           <p className="whitespace-pre-wrap break-words text-[15px] text-carbon-ink">{item.text}</p>
@@ -46,7 +51,9 @@ export function MessageItem({ item, detail, anchor }: { item: Item; detail: Load
       ) : (
         <div className="flex flex-col gap-3">
           {item.blocks.map((block, i) => (
-            <BlockView key={i} block={block} detail={detail} />
+            <div key={i} data-block={i} className="empty:hidden">
+              <BlockView block={block} detail={detail} />
+            </div>
           ))}
         </div>
       )}
@@ -66,11 +73,11 @@ function BlockView({ block, detail }: { block: Block; detail: LoadDetail }) {
   );
 }
 
-function EventLine({ item }: { item: Extract<Item, { kind: "event" }> }) {
+function EventLine({ item, index }: { item: Extract<Item, { kind: "event" }>; index?: number }) {
   const label = LABELED.has(item.event) ? t(`viewer.event.${item.event}`, { text: item.text }) : item.event;
   if (item.event === "compact") {
     return (
-      <li className={`flex items-center gap-3 text-caption text-ashen ${LAZY}`}>
+      <li data-index={index} className={`flex items-center gap-3 text-caption text-ashen ${LAZY}`}>
         <span className="h-px flex-1 bg-chalk" />
         {label}
         <span className="h-px flex-1 bg-chalk" />
@@ -79,13 +86,13 @@ function EventLine({ item }: { item: Extract<Item, { kind: "event" }> }) {
   }
   if (INLINE.has(item.event) || !item.text) {
     return (
-      <li className={`truncate text-caption text-ashen ${LAZY}`} title={item.text || undefined}>
+      <li data-index={index} className={`truncate text-caption text-ashen ${LAZY}`} title={item.text || undefined}>
         {label}
       </li>
     );
   }
   return (
-    <li className={`text-caption text-ashen ${LAZY}`}>
+    <li data-index={index} className={`text-caption text-ashen ${LAZY}`}>
       <details>
         <summary className="cursor-pointer">{label}</summary>
         <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-control bg-soft-stone p-3 font-mono">{item.text}</pre>

@@ -17,6 +17,7 @@ export type AppState = {
   language: "vi" | "en" | null;
   autostart: boolean;
   hooks: HookStatus;
+  claude_untested: string | null;
 };
 
 export type LoginCode = { user_code: string; verification_uri: string; expires_in: number };

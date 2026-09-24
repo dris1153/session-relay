@@ -213,6 +213,7 @@
   "settings.saved": "Đã lưu.",
   "settings.language": "Ngôn ngữ",
   "settings.storage": "Kho lưu trữ",
+  "settings.claude_untested": "Claude Code {version} mới hơn các phiên bản Session Relay đã kiểm thử. Đồng bộ vẫn chạy, nhưng Claude có thể đã đổi cách lưu phiên: hãy kiểm tra phiên sao chép về mở được.",
   "settings.cleanup_note":"Claude tự xoá phiên cũ hơn cleanupPeriodDays ngày (mặc định 30). Bản đã lưu vẫn còn trên cloud.",
   "settings.clear_local": "Xoá dữ liệu cục bộ",
   "settings.clear_title": "Xoá dữ liệu cục bộ?",

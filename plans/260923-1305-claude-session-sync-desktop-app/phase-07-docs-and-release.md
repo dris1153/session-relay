@@ -1,7 +1,7 @@
 ---
 phase: 7
 title: "Docs & Release"
-status: pending
+status: in-progress
 priority: P2
 effort: "1d"
 dependencies: [6]
@@ -34,10 +34,10 @@ Honest README (unofficial, threat model), project docs, supported-version note, 
 4. Two-machine E2E checklist; record results in `plans/260923-1305-claude-session-sync-desktop-app/reports/e2e-results.md`.
 
 ## Todo List
-- [ ] version notice
-- [ ] README + docs
-- [ ] installer + SHA256SUMS
-- [ ] two-machine E2E + results report
+- [x] version notice (`engine/claude_version.rs`: newest `sessions/<pid>.json` entry; notice in Settings when its minor is newer than 2.1)
+- [x] README + docs (the docs-manager draft had invented formats and features; rewritten from the code)
+- [x] installer + SHA256SUMS (`src-tauri/target/release/bundle/nsis/`, pre-uninstall hook included; install/uninstall check is part of the E2E)
+- [ ] two-machine E2E + results report (checklist: `reports/e2e-results.md`, run by the user)
 
 ## Success Criteria
 - [ ] All E2E steps pass on two machines with different profiles

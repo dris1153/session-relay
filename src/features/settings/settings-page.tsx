@@ -51,6 +51,7 @@ export function SettingsPage({ onSignOut }: { onSignOut: () => void }) {
       <h1 className="font-serif text-heading font-normal text-carbon-ink">{t("settings.title")}</h1>
       {status === "saved" && <p className="text-body text-ashen">{t("settings.saved")}</p>}
       {status && typeof status === "object" && <ErrorNote message={errorText(status.error)} />}
+      {app.claude_untested && <p className="max-w-[560px] rounded-control bg-soft-stone px-4 py-3 text-body text-carbon-ink">{t("settings.claude_untested", { version: app.claude_untested })}</p>}
       <section className="flex max-w-[560px] flex-col gap-6">
         <TextField label={t("settings.machine_name")} value={app.machine_name} onChange={(e) => edit({ machine_name: e.target.value })} />
         <FolderRow label={t("settings.claude_home")} path={app.claude_home} onChange={async () => edit({ claude_home: (await pickFolder()) ?? app.claude_home })} />

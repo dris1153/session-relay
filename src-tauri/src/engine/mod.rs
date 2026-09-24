@@ -7,6 +7,7 @@ pub mod backup;
 pub mod base;
 mod chunker;
 pub mod claude_hook_config;
+pub mod claude_version;
 pub mod context;
 pub mod crypto;
 pub mod error;

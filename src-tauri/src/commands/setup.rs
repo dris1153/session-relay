@@ -35,6 +35,8 @@ pub struct AppStateDto {
     language: Option<String>,
     autostart: bool,
     hooks: HookStatus,
+    /// Claude Code version newer than the tested ones (a notice in Settings, nothing blocks).
+    claude_untested: Option<String>,
 }
 
 fn git_version() -> Option<(String, bool)> {
@@ -56,6 +58,7 @@ pub(super) fn app_state_dto(state: &AppState) -> crate::engine::error::Result<Ap
         identity_unlocked: state.engine().is_some(),
         repo: s.repo,
         machine_name: s.machine_name,
+        claude_untested: crate::engine::claude_version::untested_version(&s.claude_home.join("sessions")),
         claude_home: s.claude_home,
         workspace_roots: s.workspace_roots,
         language: s.language,

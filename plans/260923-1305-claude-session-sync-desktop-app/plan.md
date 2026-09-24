@@ -30,7 +30,7 @@ Research: [Tauri v2 Windows](./research/researcher-01-tauri-v2-windows-report.md
 | 4b | [Dashboard Loading Speed & Skeleton UI](./phase-04b-dashboard-loading-speed-and-skeleton.md) | 1d | Complete |
 | 5 | [Auto-Save Hooks (Stop + SessionEnd)](./phase-05-session-end-hook-auto-save.md) | 2d | Complete (manual checks in Phase 7 E2E) |
 | 6 | [Workspace Scan, Clone & Conflicts](./phase-06-workspace-scan-clone-conflicts.md) | 1.5d | Complete (success criteria in Phase 7 E2E) |
-| 7 | [Docs & Release](./phase-07-docs-and-release.md) | 1d | Pending |
+| 7 | [Docs & Release](./phase-07-docs-and-release.md) | 1d | In progress |
 
 Sequential 1→7. Phase 5 core parts may start after 2.
 
@@ -45,7 +45,7 @@ tauri 2.11.6 · single-instance 2.4.5 · dialog 2.7.3 · notification 2.4.0 · o
 ## IPC Contract (single source for phases 3–6)
 | Command | Args → Return |
 |---|---|
-| `get_app_state` | → `AppState{git_version?, git_ok, has_client_id, signed_in, identity_unlocked, repo?, machine_name, claude_home, workspace_roots, language?, autostart, hooks: installed\|not_installed\|stale_path\|malformed}` |
+| `get_app_state` | → `AppState{git_version?, git_ok, has_client_id, signed_in, identity_unlocked, repo?, machine_name, claude_home, workspace_roots, language?, autostart, hooks: installed\|not_installed\|stale_path\|malformed, claude_untested?}` |
 | `start_login` / `logout` | → `LoginCode{user_code, verification_uri, expires_in}` / () ; event `auth-changed{signed_in, reason?}` |
 | `check_storage` | → `StorageCheck{state: no_installation\|repo_missing\|repo_public\|repo_foreign\|needs_new_key\|needs_unlock\|ready, user{login, avatar_url}, repo?, install_url, create_repo_url}`; REST only, no clone |
 | `passphrase_strength(passphrase)` | → 0–4 (create needs 3+) |

@@ -213,6 +213,7 @@
   "settings.saved": "Saved.",
   "settings.language": "Language",
   "settings.storage": "Storage",
+  "settings.claude_untested": "Claude Code {version} is newer than the versions Session Relay was tested with. Syncing still works, but Claude may have changed how it stores sessions: check that restored sessions open.",
   "settings.cleanup_note":"Claude deletes sessions older than cleanupPeriodDays (30 days by default). Saved copies stay in the cloud.",
   "settings.clear_local": "Clear local data",
   "settings.clear_title": "Clear local data?",

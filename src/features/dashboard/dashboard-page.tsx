@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Button } from "../../components/button";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { pickFolder } from "../../components/folder-fields";
 import { ErrorNote } from "../../components/onboarding-card";
@@ -9,13 +10,15 @@ import { useDashboard } from "../../lib/use-dashboard";
 import { SettingsPage } from "../settings/settings-page";
 import { DashboardHeader } from "./dashboard-header";
 import { ProjectDetailPane, type DetailActions } from "./project-detail-pane";
+import { DetailSkeleton } from "./loading-skeleton";
 import { ProjectSidebar } from "./project-sidebar";
 
 type Confirm = { title: string; body: string; confirm: string; action: () => void };
 
 export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: User | null; onStorageProblem: () => void; onSignOut: () => void }) {
   useLanguage();
-  const { data, error, progress, busy, run, dismissError } = useDashboard(onStorageProblem);
+  const { data, error, progress, busy, run, reload, dismissError } = useDashboard(onStorageProblem);
+  const listStatus = data ? "ready" : busy ? "loading" : "failed";
   const [selected, setSelected] = useState<string | null>(null);
   const [page, setPage] = useState<"projects" | "settings">("projects");
   const [confirm, setConfirm] = useState<Confirm | null>(null);
@@ -88,6 +91,7 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
       <div className="flex min-h-0 flex-1">
         <ProjectSidebar
           projects={projects}
+          status={listStatus}
           selected={project?.key_hash ?? null}
           onSelect={(keyHash) => {
             setSelected(keyHash);
@@ -100,8 +104,17 @@ export function DashboardPage({ user, onStorageProblem, onSignOut }: { user: Use
           <SettingsPage onSignOut={onSignOut} />
         ) : project ? (
           <ProjectDetailPane project={project} busy={busy !== null} running={busy === project.key_hash} report={reports[project.key_hash] ?? null} actions={actions(project)} activityVersion={activityVersion} />
+        ) : data ? (
+          <p className="flex-1 p-8 text-body text-ashen">{t("dashboard.empty", { unmanaged: data.unmanaged })}</p>
+        ) : listStatus === "loading" ? (
+          <DetailSkeleton />
         ) : (
-          <p className="flex-1 p-8 text-body text-ashen">{data ? t("dashboard.empty", { unmanaged: data.unmanaged }) : t("dashboard.loading")}</p>
+          <div className="flex flex-1 flex-col items-start gap-4 p-8">
+            <p className="text-body text-ashen">{t("dashboard.failed")}</p>
+            <Button variant="secondary" onClick={reload}>
+              {t("common.retry")}
+            </Button>
+          </div>
         )}
       </div>
       <ConfirmDialog

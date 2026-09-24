@@ -31,7 +31,7 @@ impl SyncLock {
         let deadline = Instant::now() + wait;
         loop {
             match Self::try_acquire(path, op) {
-                Err(Error::Busy) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(500)),
+                Err(Error::Busy) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(50)),
                 other => return other,
             }
         }

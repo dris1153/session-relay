@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{Read, Write};
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -6,6 +6,7 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use super::error::{Error, IoContext, Result};
+pub use super::git_failure::failure;
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -73,19 +74,24 @@ impl GitEnv {
     }
 
     pub fn run(&self, dir: &Path, args: &[&str], timeout: Duration) -> Result<Output> {
-        self.exec(dir, args, Limit::Total(timeout), &mut |_| {})
+        self.exec(dir, args, &[], Limit::Total(timeout), &mut |_| {})
+    }
+
+    /// Feeds `input` to stdin (`cat-file --batch`).
+    pub fn run_with_input(&self, dir: &Path, args: &[&str], input: &[u8], timeout: Duration) -> Result<Output> {
+        self.exec(dir, args, input, Limit::Total(timeout), &mut |_| {})
     }
 
     /// For transfers of any size: killed only after `stall` without output. Pass `--progress`
     /// so git keeps writing; each stderr chunk also goes to `on_stderr`.
     pub fn run_watched(&self, dir: &Path, args: &[&str], stall: Duration, on_stderr: &mut dyn FnMut(&str)) -> Result<Output> {
-        self.exec(dir, args, Limit::Stall(stall), on_stderr)
+        self.exec(dir, args, &[], Limit::Stall(stall), on_stderr)
     }
 
-    fn exec(&self, dir: &Path, args: &[&str], limit: Limit, on_stderr: &mut dyn FnMut(&str)) -> Result<Output> {
+    fn exec(&self, dir: &Path, args: &[&str], input: &[u8], limit: Limit, on_stderr: &mut dyn FnMut(&str)) -> Result<Output> {
         let label = args.first().copied().unwrap_or("git").to_string();
         let mut cmd = Command::new("git");
-        cmd.arg("-C").arg(dir).args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).creation_flags(CREATE_NO_WINDOW);
+        cmd.arg("-C").arg(dir).args(args).stdin(if input.is_empty() { Stdio::null() } else { Stdio::piped() }).stdout(Stdio::piped()).stderr(Stdio::piped()).creation_flags(CREATE_NO_WINDOW);
         self.configure(&mut cmd);
         // Pin the repository: with a broken `store/.git`, git would otherwise walk up into a parent repo.
         cmd.env("GIT_DIR", dir.join(".git")).env("GIT_WORK_TREE", dir);
@@ -94,6 +100,11 @@ impl GitEnv {
         }
         // Not `Error::Git`: a git that cannot start (upgrade, antivirus) says nothing about the clone.
         let mut child = cmd.spawn().at(dir)?;
+        if let Some(mut stdin) = child.stdin.take() {
+            // Written from a thread: git may fill its stdout pipe before reading all of stdin.
+            let input = input.to_vec();
+            std::thread::spawn(move || stdin.write_all(&input));
+        }
         let (mut out, mut err) = (child.stdout.take().expect("piped"), child.stderr.take().expect("piped"));
         let out_thread = std::thread::spawn(move || {
             let mut buf = Vec::new();
@@ -152,22 +163,6 @@ impl GitEnv {
     }
 }
 
-/// Only `Error::Git` means "the clone may be broken" and triggers a rebuild. A refused credential
-/// (signed out, grant revoked, repo no longer shared) or an unreachable network is not that:
-/// rebuilding would throw away a clone that is fine.
-pub fn failure(args: &str, stderr: &str) -> Error {
-    const AUTH: [&str; 6] = ["could not read Username", "Authentication failed", "returned error: 401", "returned error: 403", "Permission to", "Repository not found"];
-    const NETWORK: [&str; 7] = ["unable to access", "Could not resolve host", "Failed to connect", "timed out", "early EOF", "Connection reset", "remote end hung up"];
-    let stderr = stderr.trim().to_string();
-    if AUTH.iter().any(|s| stderr.contains(s)) {
-        Error::Auth(stderr)
-    } else if NETWORK.iter().any(|s| stderr.contains(s)) {
-        Error::Network(stderr)
-    } else {
-        Error::Git { args: args.into(), stderr }
-    }
-}
-
 /// git-remote-https and credential helpers are children of git; kill them too.
 fn kill_tree(pid: u32) {
     let _ = Command::new("taskkill")
@@ -176,18 +171,4 @@ fn kill_tree(pid: u32) {
         .stderr(Stdio::null())
         .creation_flags(CREATE_NO_WINDOW)
         .status();
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn refused_credentials_are_auth_errors_not_broken_clones() {
-        let refused = "fatal: could not read Username for 'https://github.com': terminal prompts disabled";
-        assert!(matches!(failure("fetch", refused), Error::Auth(_)));
-        assert!(matches!(failure("fetch", "fatal: Authentication failed for 'https://github.com/me/s.git/'"), Error::Auth(_)));
-        assert!(matches!(failure("fetch", "fatal: unable to access 'https://github.com/me/s.git/': Could not resolve host: github.com"), Error::Network(_)));
-        assert!(matches!(failure("fetch", "fatal: bad object HEAD"), Error::Git { .. }));
-    }
 }

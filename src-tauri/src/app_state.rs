@@ -72,8 +72,8 @@ impl AppState {
             });
         }
         let mut cache = crate::dashboard::cache(self);
-        cache.view = None;
-        cache.generation += 1;
+        let generation = cache.generation + 1;
+        *cache = crate::dashboard::DashboardCache { generation, ..Default::default() };
         drop(cache);
         *self.engine.lock().expect("engine lock") = Some(Arc::new(engine));
         Ok(())

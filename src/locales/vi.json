@@ -144,6 +144,9 @@
   "activity.counts": "lưu {pushed}, chép {pulled}",
   "activity.delete_remote": "xoá một phiên khỏi cloud",
 
+  "progress.waiting": "Đang chờ tác vụ khác…",
+  "progress.checking": "Đang kiểm tra GitHub…",
+  "progress.evaluate": "Đang tính trạng thái {current}/{total} dự án",
   "progress.download": "Đang tải kho… {percent}%",
   "progress.upload": "Đang tải lên… {percent}%",
   "progress.restore": "Đang chép tệp {current}/{total}",
@@ -159,7 +162,7 @@
   "sidebar.empty": "Chưa thấy phiên Claude nào có remote GitHub.",
   "sidebar.all_synced": "Mọi dự án đã khớp.",
 
-  "dashboard.loading": "Đang tải danh sách dự án…",
+  "dashboard.failed": "Không tải được danh sách dự án.",
   "dashboard.empty": "Chưa thấy phiên Claude nào có remote GitHub. Thư mục không có remote: {unmanaged}.",
 
   "link.mismatch_title": "Thư mục này là repo khác",

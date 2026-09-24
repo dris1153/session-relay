@@ -34,6 +34,16 @@
 
   --shadow-soft: rgba(0, 0, 0, 0.04) 0px 4px 20px 0px;
   --shadow-featured: oklab(0.431435 -0.02915 -0.125723 / 0.1) 0px 4px 24px 0px;
+
+  --animate-indeterminate: indeterminate 1.4s ease-in-out infinite;
+  @keyframes indeterminate {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(400%);
+    }
+  }
 }
 
 @layer base {

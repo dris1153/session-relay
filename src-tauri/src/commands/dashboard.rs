@@ -24,6 +24,21 @@ pub async fn list_projects(state: State<'_, Arc<AppState>>, fetch: bool) -> CmdR
     blocking(move || dashboard::load(&state, fetch)).await
 }
 
+/// First step of opening the app: statuses against the snapshot already on disk, no network.
+/// None before the first download: without the cloud side every project would look unsaved.
+#[tauri::command]
+pub async fn local_projects(state: State<'_, Arc<AppState>>) -> CmdResult<Option<Dashboard>> {
+    let state = Arc::clone(&state);
+    blocking(move || {
+        let engine = state.engine().ok_or(Error::NotLoggedIn)?;
+        if engine.repo.last_snapshot().is_none() {
+            return Ok(None);
+        }
+        dashboard::load(&state, false).map(Some)
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn project_activity(state: State<'_, Arc<AppState>>, key_hash: String) -> CmdResult<Vec<Activity>> {
     let state = Arc::clone(&state);
@@ -141,8 +156,8 @@ pub async fn clear_local_data(app: AppHandle, state: State<'_, Arc<AppState>>) -
             }
             // Still under the lock: no load may use the cached view of the deleted clone.
             let mut cache = dashboard::cache(&state);
-            cache.view = None;
-            cache.generation += 1;
+            let generation = cache.generation + 1;
+            *cache = dashboard::DashboardCache { generation, ..Default::default() };
         }
         dashboard::publish(&app, &state);
         Ok(())

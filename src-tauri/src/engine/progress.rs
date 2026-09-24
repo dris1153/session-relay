@@ -12,17 +12,23 @@ const MIN_GAP: Duration = Duration::from_millis(100);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(tag = "step", rename_all = "snake_case")]
 pub enum Progress {
+    /// A save (or maintenance) holds the store.
+    Waiting,
+    /// Asking GitHub for the latest snapshot.
+    Checking,
     Download { percent: u8 },
     Upload { percent: u8 },
     Restore { current: usize, total: usize },
     Save { current: usize, total: usize },
+    Evaluate { current: usize, total: usize },
 }
 
 impl Progress {
     fn is_last(&self) -> bool {
         match *self {
             Progress::Download { percent } | Progress::Upload { percent } => percent == 100,
-            Progress::Restore { current, total } | Progress::Save { current, total } => current == total,
+            Progress::Restore { current, total } | Progress::Save { current, total } | Progress::Evaluate { current, total } => current == total,
+            Progress::Waiting | Progress::Checking => true,
         }
     }
 }

@@ -2,11 +2,12 @@ import { useRef, useState, type KeyboardEvent } from "react";
 import { t, useLanguage } from "../../lib/i18n";
 import { needsAttention, STATUS } from "../../lib/status-copy";
 import type { ProjectView, User } from "../../lib/tauri-commands";
+import { SidebarSkeleton } from "./loading-skeleton";
 
 type Filter = "attention" | "all";
 
 /** Projects grouped by owner; ↑/↓ move the selection, like a list box. */
-export function ProjectSidebar({ projects, selected, onSelect, user, onSettings }: { projects: ProjectView[]; selected: string | null; onSelect: (keyHash: string) => void; user: User | null; onSettings: () => void }) {
+export function ProjectSidebar({ projects, status, selected, onSelect, user, onSettings }: { projects: ProjectView[]; status: "loading" | "failed" | "ready"; selected: string | null; onSelect: (keyHash: string) => void; user: User | null; onSettings: () => void }) {
   useLanguage();
   const [filter, setFilter] = useState<Filter>("all");
   const list = useRef<HTMLDivElement>(null);
@@ -33,8 +34,9 @@ export function ProjectSidebar({ projects, selected, onSelect, user, onSettings 
           </button>
         ))}
       </div>
-      <div ref={list} className="flex-1 overflow-y-auto px-2 pb-4" onKeyDown={onKeyDown}>
-        {ordered.length === 0 && <p className="px-3 pt-6 text-body text-ashen">{t(filter === "all" ? "sidebar.empty" : "sidebar.all_synced")}</p>}
+      <div ref={list} className="flex-1 overflow-y-auto px-2 pb-4" onKeyDown={onKeyDown} aria-busy={status === "loading"}>
+        {status === "loading" && <SidebarSkeleton />}
+        {status === "ready" && ordered.length === 0 && <p className="px-3 pt-6 text-body text-ashen">{t(filter === "all" ? "sidebar.empty" : "sidebar.all_synced")}</p>}
         {owners.map((owner) => (
           <section key={owner} className="pt-4">
             <h2 className="px-3 pb-1 text-caption font-medium uppercase tracking-wide text-pebble">{owner}</h2>

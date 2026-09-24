@@ -8,14 +8,14 @@ use session_relay_lib::engine::sync::SyncMode;
 use support::*;
 
 fn status(m: &mut Machine) -> ProjectStatus {
-    let sha = overview::refresh(&m.engine, std::time::Duration::ZERO).unwrap();
-    let ov = overview::list(&m.engine, sha.as_deref()).unwrap();
+    overview::refresh(&m.engine, std::time::Duration::ZERO).unwrap();
+    let ov = overview::list(&m.engine, &mut Default::default(), std::time::Duration::ZERO).unwrap();
     ov.projects.iter().find(|p| p.key.remote == REMOTE).map(|p| p.status).expect("project listed")
 }
 
 fn file_state(m: &mut Machine, rel: &str) -> FileState {
-    let sha = overview::refresh(&m.engine, std::time::Duration::ZERO).unwrap();
-    let ov = overview::list(&m.engine, sha.as_deref()).unwrap();
+    overview::refresh(&m.engine, std::time::Duration::ZERO).unwrap();
+    let ov = overview::list(&m.engine, &mut Default::default(), std::time::Duration::ZERO).unwrap();
     ov.projects[0].files.iter().find(|f| f.rel == rel).map(|f| f.state).expect("file listed")
 }
 

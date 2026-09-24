@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::{MutexGuard, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -12,11 +12,14 @@ use crate::engine::error::{Error, Result};
 use crate::engine::evaluate::ProjectStatus;
 use crate::engine::links::Links;
 use crate::engine::overview::{self, FileRow};
+use crate::engine::remote::ManifestCache;
 use crate::engine::project_identity::ProjectKey;
 use crate::engine::sync::{self, Request, SyncMode, SyncReport};
 
 /// How long a refresh waits for a running save before showing the cached picture.
 const REFRESH_WAIT: Duration = Duration::from_secs(30);
+/// A local-only reload waits just past startup maintenance; a long save keeps the cached view.
+const LIST_WAIT: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ProjectView {
@@ -59,6 +62,9 @@ impl Dashboard {
 #[derive(Default)]
 pub struct DashboardCache {
     pub view: Option<Dashboard>,
+    /// Snapshot `view` was computed against: the watcher refreshes when the clone knows a newer one.
+    pub sha: Option<String>,
+    pub manifests: ManifestCache,
     pub generation: u64,
 }
 
@@ -71,10 +77,11 @@ pub fn cache(state: &AppState) -> MutexGuard<'_, DashboardCache> {
 /// latest one. A running save (`Busy`) or a network failure keeps the last known picture.
 /// The cache lock is never held across git: a slow first download must not block other commands.
 pub fn load(state: &AppState, fetch: bool) -> Result<Dashboard> {
+    let started = Instant::now();
     let engine = state.engine().ok_or(Error::NotLoggedIn)?;
-    let (cached, generation) = {
+    let (cached, mut manifests, generation) = {
         let cache = cache(state);
-        (cache.view.clone(), cache.generation)
+        (cache.view.clone(), cache.manifests.clone(), cache.generation)
     };
     let mut view = cached.clone().unwrap_or_default();
     if fetch {
@@ -88,10 +95,13 @@ pub fn load(state: &AppState, fetch: bool) -> Result<Dashboard> {
             Err(e) => return Err(e),
         }
     }
-    let overview = match overview::list(&engine, engine.repo.last_snapshot().as_deref()) {
-        Err(Error::Busy) if cached.is_some() => return Ok(view),
+    let fetched = started.elapsed();
+    let overview = match overview::list(&engine, &mut manifests, if fetch { REFRESH_WAIT } else { LIST_WAIT }) {
+        // A focus reload during a save keeps the last picture; after a fetch the fresh one is owed.
+        Err(Error::Busy) if cached.is_some() && !fetch => return Ok(view),
         other => other?,
     };
+    let sha = overview.sha.clone();
     let links = Links::load(&engine.cfg.links_file())?;
     view.projects = overview.projects.into_iter().map(|p| project_view(p, &links)).collect();
     view.unmanaged = overview.unmanaged_dirs.len();
@@ -100,11 +110,14 @@ pub fn load(state: &AppState, fetch: bool) -> Result<Dashboard> {
     let mut cache = cache(state);
     if cache.generation == generation {
         cache.view = Some(view.clone());
+        cache.sha = sha;
+        cache.manifests = manifests;
     }
     drop(cache);
     if let Some(app) = state.app.get() {
         crate::tray::set_attention(app, view.needs_attention());
     }
+    log::info!("dashboard load: fetch={fetch} fetch_ms={} total_ms={}", fetched.as_millis(), started.elapsed().as_millis());
     Ok(view)
 }
 

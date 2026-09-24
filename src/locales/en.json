@@ -144,6 +144,9 @@
   "activity.counts": "{pushed} saved, {pulled} restored",
   "activity.delete_remote": "deleted a session from the cloud",
 
+  "progress.waiting": "Waiting for another task…",
+  "progress.checking": "Checking GitHub…",
+  "progress.evaluate": "Checking projects {current}/{total}",
   "progress.download": "Downloading storage… {percent}%",
   "progress.upload": "Uploading… {percent}%",
   "progress.restore": "Restoring file {current}/{total}",
@@ -159,7 +162,7 @@
   "sidebar.empty": "No Claude sessions with a GitHub remote yet.",
   "sidebar.all_synced": "Every project is in sync.",
 
-  "dashboard.loading": "Loading projects…",
+  "dashboard.failed": "Could not load the projects.",
   "dashboard.empty": "No Claude sessions with a GitHub remote yet. Folders without one: {unmanaged}.",
 
   "link.mismatch_title": "This folder is another repository",

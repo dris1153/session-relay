@@ -1,8 +1,9 @@
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use super::error::{Error, IoContext, Result};
 use super::fs_util::remove_lock_files;
+use super::git_batch;
 use super::git_process::{failure, GitEnv, Output};
 use super::progress::{Progress, ProgressSink};
 
@@ -11,8 +12,6 @@ const WORKTREE: Duration = Duration::from_secs(600);
 const NETWORK: Duration = Duration::from_secs(180);
 /// Transfers of any size: git is killed only after this long without progress output.
 const STALL: Duration = Duration::from_secs(120);
-const MAINTENANCE: Duration = Duration::from_secs(600);
-const GC_EVERY: Duration = Duration::from_secs(7 * 24 * 3600);
 const LAST_SNAPSHOT: &str = "refs/session-relay/last";
 
 /// Local clone of the storage repo. Remote history is always one orphan snapshot commit.
@@ -56,14 +55,15 @@ impl StoreRepo {
         Ok(String::from_utf8_lossy(&out).split_whitespace().next().map(str::to_owned))
     }
 
-    /// Fetches the current snapshot; None when the remote has no `main` yet.
+    /// Fetches the current snapshot; None when the remote has no `main` yet (told by fetch
+    /// itself: one round trip to GitHub instead of `ls-remote` + `fetch`).
     pub fn fetch(&self) -> Result<Option<String>> {
-        if self.remote_head()?.is_none() {
+        let args = ["fetch", "--progress", "--depth", "1", "--no-tags", "origin", "main"];
+        let out = self.transfer(&args, |percent| Progress::Download { percent })?;
+        if !out.status_ok && out.stderr.lines().any(|l| l.starts_with("fatal: couldn't find remote ref")) {
             self.remember(None)?;
             return Ok(None);
         }
-        let args = ["fetch", "--progress", "--depth", "1", "--no-tags", "origin", "main"];
-        let out = self.transfer(&args, |percent| Progress::Download { percent })?;
         if !out.status_ok {
             return Err(failure(&args.join(" "), &out.stderr));
         }
@@ -99,9 +99,20 @@ impl StoreRepo {
         self.git.check(&self.dir, &["cat-file", "blob", &format!("{sha}:{path}")], LOCAL).map(Some)
     }
 
-    pub fn list_dirs(&self, sha: &str, dir: &str) -> Result<Vec<String>> {
-        let out = self.git.check(&self.dir, &["ls-tree", "--name-only", sha, &format!("{dir}/")], LOCAL)?;
-        Ok(String::from_utf8_lossy(&out).lines().filter_map(|l| l.rsplit('/').next()).map(str::to_owned).collect())
+    /// Several blobs of one snapshot through a single `cat-file --batch`. The paths come from a
+    /// listing of that snapshot, so an absent one means a damaged clone: an error, never None.
+    pub fn read_blobs(&self, sha: &str, paths: &[String]) -> Result<Vec<Vec<u8>>> {
+        if paths.is_empty() {
+            return Ok(Vec::new());
+        }
+        let input: String = paths.iter().map(|p| format!("{sha}:{p}\n")).collect();
+        let out = self.git.run_with_input(&self.dir, &["cat-file", "--batch"], input.as_bytes(), LOCAL)?;
+        let blobs = out.status_ok.then(|| git_batch::parse(&out.stdout, paths.len())).flatten();
+        blobs.ok_or_else(|| Error::Git { args: "cat-file --batch".into(), stderr: format!("unexpected output {}", out.stderr.trim()) })
+    }
+
+    pub(super) fn run_git(&self, args: &[&str], timeout: Duration) -> Result<Output> {
+        self.git.run(&self.dir, args, timeout)
     }
 
     /// Makes the worktree exactly the snapshot (or empty), materializing only `sparse` paths:
@@ -168,26 +179,13 @@ impl StoreRepo {
         remove_lock_files(&self.dir.join(".git"), 0);
     }
 
-    /// Rebuilds a broken clone (it is only a cache) and garbage-collects at most weekly.
-    /// Must run while holding `SyncLock`.
+    /// Rebuilds a broken clone (it is only a cache). Cheap; must run while holding `SyncLock`.
+    /// Corruption it cannot see shows up as a git error later, which rebuilds the clone too.
     pub fn recover(&self) -> Result<()> {
         self.clear_stale_locks();
-        let git_dir = self.dir.join(".git");
-        if git_dir.exists() && !self.git.run(&self.dir, &["rev-parse", "--git-dir"], LOCAL)?.status_ok {
+        if self.dir.join(".git").exists() && !self.git.run(&self.dir, &["rev-parse", "--git-dir"], LOCAL)?.status_ok {
             std::fs::remove_dir_all(&self.dir).at(&self.dir)?;
         }
-        self.ensure_clone()?;
-        let stamp = git_dir.join("session-relay-last-gc");
-        let due = std::fs::metadata(&stamp).and_then(|m| m.modified()).map_or(true, |t| SystemTime::now().duration_since(t).unwrap_or_default() > GC_EVERY);
-        if due {
-            if !self.git.run(&self.dir, &["fsck", "--connectivity-only", "--no-dangling"], MAINTENANCE)?.status_ok {
-                std::fs::remove_dir_all(&self.dir).at(&self.dir)?;
-                return self.ensure_clone();
-            }
-            let _ = self.git.run(&self.dir, &["reflog", "expire", "--expire=now", "--all"], LOCAL);
-            let _ = self.git.run(&self.dir, &["gc", "-q", "--prune=now"], MAINTENANCE);
-            std::fs::write(&stamp, b"").at(&stamp)?;
-        }
-        Ok(())
+        self.ensure_clone()
     }
 }

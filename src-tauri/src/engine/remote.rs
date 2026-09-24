@@ -14,11 +14,14 @@ pub fn manifest(engine: &Engine, sha: Option<&str>, key: &ProjectKey) -> Result<
     }
 }
 
+/// Every project manifest of a snapshot: one listing plus one batch read. Only paths that exist
+/// are read, so a stray entry under `p/` is ignored and a missing object is a real error.
 pub fn all_manifests(engine: &Engine, sha: Option<&str>) -> Result<Vec<Manifest>> {
     let Some(sha) = sha else { return Ok(vec![]) };
+    let paths: Vec<String> = engine.repo.tree_paths(sha, "p")?.into_iter().filter(|p| p.split('/').count() == 3 && p.ends_with("/manifest.age")).collect();
     let mut out = Vec::new();
-    for key_hash in engine.repo.list_dirs(sha, "p")? {
-        let Some(sealed) = engine.repo.show(sha, &engine.manifest_path(&key_hash))? else { continue };
+    for (path, sealed) in paths.iter().zip(engine.repo.read_blobs(sha, &paths)?) {
+        let key_hash = path.split('/').nth(1).unwrap_or_default();
         match Manifest::open(&sealed, &engine.keys, None) {
             // A manifest filed under a name that is not its own key hash was moved by someone else.
             Ok(m) if engine.keys.key_hash16(&m.key()) == key_hash => out.push(m),
@@ -27,6 +30,24 @@ pub fn all_manifests(engine: &Engine, sha: Option<&str>) -> Result<Vec<Manifest>
         }
     }
     Ok(out)
+}
+
+/// Decrypted manifests of one snapshot. A snapshot never changes, so they stay valid until the
+/// sha does (the app drops the cache with the engine, i.e. with the key).
+#[derive(Default, Clone)]
+pub struct ManifestCache {
+    sha: Option<String>,
+    manifests: Vec<Manifest>,
+}
+
+impl ManifestCache {
+    pub fn get(&mut self, engine: &Engine, sha: Option<&str>) -> Result<Vec<Manifest>> {
+        if self.sha.as_deref() != sha || sha.is_none() {
+            self.manifests = all_manifests(engine, sha)?;
+            self.sha = sha.map(str::to_owned);
+        }
+        Ok(self.manifests.clone())
+    }
 }
 
 /// Decrypts one chunk and checks it is the content its name claims.

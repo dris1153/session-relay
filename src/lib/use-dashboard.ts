@@ -6,6 +6,8 @@ import { api, errorCode, type Dashboard, type Progress } from "./tauri-commands"
 const STORAGE_ERRORS = new Set(["not_logged_in", "auth_rejected", "wrong_identity", "store_reset"]);
 const FOCUS_RELOAD_GAP_MS = 5000;
 const BUSY_RETRY_MS = 3000;
+/** Steps a user action can cause; the rest (waiting, checking, evaluating) belong to loading the list. */
+const ACTION_STEPS = new Set(["download", "upload", "restore", "save"]);
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -18,6 +20,7 @@ export function useDashboard(onStorageProblem: () => void) {
   // Read synchronously by event handlers and to refuse a second action while one runs.
   const running = useRef<string | null>(null);
   const lastLoad = useRef(0);
+  const mounted = useRef(true);
   const storageProblem = useRef(onStorageProblem);
   useEffect(() => {
     storageProblem.current = onStorageProblem;
@@ -56,23 +59,36 @@ export function useDashboard(onStorageProblem: () => void) {
     [fail],
   );
 
-  useEffect(() => {
-    let alive = true;
-    // Startup maintenance or a save may hold the store; its end publishes, and we keep asking meanwhile.
-    run("list", async () => {
-      while (alive && lastLoad.current === 0) {
-        try {
-          return show(await api.listProjects(true));
-        } catch (e) {
-          if (errorCode(e) !== "busy") throw e;
+  const load = useCallback(
+    () =>
+      run("list", async () => {
+        // Phase 1: the snapshot already on disk, no network (none before the first download).
+        const local = await api.localProjects().catch(() => null);
+        if (local) show(local);
+        // Phase 2: ask GitHub. While a save holds the store, retry until it ends or a publish arrives.
+        const seen = lastLoad.current;
+        for (;;) {
+          try {
+            return show(await api.listProjects(true));
+          } catch (e) {
+            if (errorCode(e) !== "busy") throw e;
+          }
+          if (!mounted.current || lastLoad.current !== seen) return;
           await pause(BUSY_RETRY_MS);
         }
-      }
-    });
+      }),
+    [run, show],
+  );
+
+  useEffect(() => {
+    mounted.current = true;
+    load();
     const subscriptions = [
       listen<Dashboard>("projects-changed", (e) => show(e.payload)),
-      // Background refreshes (watcher, tray) also report progress; only an action of ours shows it.
-      listen<Progress>("sync-progress", (e) => running.current && setProgress(e.payload)),
+      // Background refreshes (watcher, tray) report progress too: show only what our action causes.
+      listen<Progress>("sync-progress", (e) => {
+        if (running.current === "list" || (running.current && ACTION_STEPS.has(e.payload.step))) setProgress(e.payload);
+      }),
     ];
     // Claude writes sessions all the time: re-read local state when the window comes back.
     const onFocus = () => {
@@ -82,11 +98,11 @@ export function useDashboard(onStorageProblem: () => void) {
     };
     window.addEventListener("focus", onFocus);
     return () => {
-      alive = false;
+      mounted.current = false;
       subscriptions.forEach((s) => s.then((stop) => stop()));
       window.removeEventListener("focus", onFocus);
     };
-  }, [run, fail, show]);
+  }, [load, fail, show]);
 
-  return { data, error, progress, busy, run, dismissError: () => setError(null) };
+  return { data, error, progress, busy, run, reload: load, dismissError: () => setError(null) };
 }

@@ -82,8 +82,11 @@ export type SaveAllItem = { key_hash: string; report: SyncReport | null; error: 
 
 export type LinkResult = { origin_matches: boolean; found_remote: string | null };
 
-/** File steps name the file being worked on: `current` of `total`. */
-export type Progress = { step: "download" | "upload"; percent: number } | { step: "restore" | "save"; current: number; total: number };
+/** Counted steps name the item being worked on: `current` of `total`. */
+export type Progress =
+  | { step: "waiting" | "checking" }
+  | { step: "download" | "upload"; percent: number }
+  | { step: "restore" | "save" | "evaluate"; current: number; total: number };
 
 export type SyncMode = "auto" | "force_local" | "force_remote";
 
@@ -106,6 +109,7 @@ export const api = {
   unlockKey: (passphrase: string) => invoke<void>("unlock_key", { passphrase }),
   saveSettings: (patch: SettingsPatch) => invoke<AppState>("save_settings", { patch }),
   listProjects: (fetch: boolean) => invoke<Dashboard>("list_projects", { fetch }),
+  localProjects: () => invoke<Dashboard | null>("local_projects"),
   projectActivity: (keyHash: string) => invoke<Activity[]>("project_activity", { keyHash }),
   syncProject: (keyHash: string, mode: SyncMode, files?: string[]) => invoke<SyncReport>("sync_project", { keyHash, mode, files: files ?? null }),
   saveAll: () => invoke<SaveAllItem[]>("save_all"),

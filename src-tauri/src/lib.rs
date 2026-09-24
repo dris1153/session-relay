@@ -54,6 +54,7 @@ pub fn run() {
             commands::setup::unlock_key,
             commands::settings::save_settings,
             commands::dashboard::list_projects,
+            commands::dashboard::local_projects,
             commands::dashboard::project_activity,
             commands::dashboard::sync_project,
             commands::dashboard::save_all,
@@ -76,10 +77,6 @@ fn restore(state: &Arc<app_state::AppState>) {
                     if let Err(e) = engine::maintenance::on_startup(&engine) {
                         log::warn!("startup maintenance: {}", e.code());
                     }
-                }
-                // The window's first load may have found the store busy with maintenance.
-                if let Some(app) = state.app.get() {
-                    dashboard::publish(app, &state);
                 }
             });
         }

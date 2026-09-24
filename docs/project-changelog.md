@@ -2,7 +2,7 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.2.1] — 2026-09-24
 
 ### Changed
 - The app is named "Session Relay" (window, shortcuts, Apps list) and installs into `%LOCALAPPDATA%\Session Relay`. Installing over 0.1–0.2 removes the old `session-relay` install first and keeps app data, sign-in and auto-save hooks; the installer points the hooks and the start-with-Windows entry at the new exe.

@@ -26,6 +26,10 @@ Target of the first release (v0.1.0): Windows, one GitHub account, save and rest
 
 - Session transcript viewer: click a session to read the whole conversation (messages, tool calls with results and diffs, nested subagents, metadata), local or cloud copy, with search, outline, Markdown export and a diverged-copy compare. Plan: `plans/260924-1148-session-transcript-viewer/`.
 
+## v0.2.1 (released 2026-09-24)
+
+- The app is named "Session Relay" and installs into its own folder; the installer moves 0.1–0.2 installs, their auto-save hooks and the start-with-Windows entry.
+
 ## Deferred
 
 - Tray attention for projects that are not linked yet but have a checkout in the workspace folders (needs a scan per refresh).
@@ -33,6 +37,7 @@ Target of the first release (v0.1.0): Windows, one GitHub account, save and rest
 - Sharing manifests between the dashboard cache and evaluation without copying (`Arc`).
 - A job object so git children (store sync and project clone) die with the app on Quit.
 - Code signing of the installer.
+- Keep auto-save hooks and start-with-Windows when a later installer uninstalls the previous version first (the default choice on its reinstall page runs a full uninstall).
 
 ## Out of scope for v0.1.0
 

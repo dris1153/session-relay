@@ -1,7 +1,7 @@
 ---
 phase: 5
 title: "Auto-Save Hooks (Stop + SessionEnd)"
-status: pending
+status: completed
 priority: P1
 effort: "2d"
 dependencies: [2, 4]
@@ -13,6 +13,14 @@ dependencies: [2, 4]
 - plan.md §IPC Contract (exe subcommands); Red Team #5, #8(scope), #15
 - Claude Code hooks: https://code.claude.com/docs/en/hooks (common input: session_id, transcript_path, cwd, hook_event_name)
 - `reports/spike-results.md` Spike B (VS Code firing, shell quoting, worker survival)
+
+## Implementation Notes (2026-09-24)
+- `engine/claude_hook_config.rs`: status/install/uninstall on `<claude_home>/settings.json` (exec form, `timeout: 10`, backup `settings.json.bak-<ts>` before every write, malformed shape never written).
+- `hook.rs`: `hook-save` (≤64 KB stdin, BOM tolerated, transcript canonicalized and required inside `<claude_home>/projects/`, marker, detached worker; always exit 0, no stdout) and `hook-worker` (sleep, newest-marker check, push-only save). `pending.rs`: one file per turn (`pending/<enc>/<stamp>`), so clearing covered markers never deletes a newer one.
+- `save_pending` classifies the dir under the lock (learns new links), pushes with `SyncMode::PushOnly`, keeps the marker only for failures that may pass (busy, offline, signed out, I/O).
+- `auto_save.rs` (GUI): switch via `set_auto_save`, silent repair of a stale exe path at startup, watcher finishes markers older than 3 min, tray "Quit" finishes all markers (≤30 s) first. Tray has an "Auto-save" check item.
+- Onboarding's last step offers auto-save (default on) and now also registers autostart (release builds).
+- Failures: the dashboard lists projects whose latest activity is a failed auto-save (`auto_save_failures`); the tray shows attention and the detail pane a note. No toast (no notification plugin).
 
 ## Overview
 User works mostly in the VS Code extension where `SessionEnd` is rare. `Stop` (end of every Claude turn) + `SessionEnd` both run `session-relay.exe hook-save`, which writes a durable pending marker and spawns a debounced detached worker (push-only). GUI retries stale markers. One toggle installs/uninstalls both hooks.
@@ -55,11 +63,11 @@ engine/claude_hook_config.rs  install/uninstall/status on <claude_home>/settings
 5. Failures → activity entries with `source:"hook"`; GUI shows attention badge + toast for new failures since last view.
 
 ## Todo List
-- [ ] claude_hook_config + tests
-- [ ] main.rs dispatch + hook entry/worker
-- [ ] pending markers + GUI retry + pre-quit flush
-- [ ] toggles (settings, tray, onboarding)
-- [ ] failure surfacing via activity
+- [x] claude_hook_config + tests
+- [x] main.rs dispatch + hook entry/worker
+- [x] pending markers + GUI retry + pre-quit flush
+- [x] toggles (settings, tray, onboarding)
+- [x] failure surfacing via activity (dashboard note + tray attention; toast deferred)
 
 ## Success Criteria
 - [ ] VS Code session: ~2 min after last Claude reply, cloud has the turn (verify from machine B); Claude UI never waits on hook
@@ -74,3 +82,18 @@ engine/claude_hook_config.rs  install/uninstall/status on <claude_home>/settings
 ## Security Considerations
 - `transcript_path` validated component-wise after canonicalize; worker re-validates dir name against links.
 - No stdout output; no content/token in logs; settings.json backup local only.
+
+## Review Log (2026-09-24)
+Code review 7/10 (`reports/code-reviewer-260924-phase-05-hooks.md`). Fixed:
+- H1: a `storage-blocked` file (set when the storage check is not Ready, cleared when Ready) stops hook workers too; they run in their own processes and never saw the GUI dropping its engine. Markers stay until storage is usable.
+- H2: hook stdin cap 16 MB (the Stop payload carries the whole last reply) and the rest is drained, so Claude never sees a broken pipe.
+- H3: `hook-uninstall` subcommand run by the NSIS pre-uninstall hook (`src-tauri/windows/installer-hooks.nsh`, skipped on updates); a `claude_home` change moves the hooks to the new Claude folder.
+- M1: stale-path repair only in release builds and only when the registered exe no longer exists.
+- M2: failures only for projects on screen; the watcher refreshes locally when the activity file changes (worker outcomes).
+- M3: Quit is single-shot and exits after at most 30 s whatever the saves do.
+- M4: a symlinked `settings.json` is written through; backups capped at 5 with millisecond names.
+- M5: orphan threshold 15 min (longer than a live worker), exponential backoff (1 min → 30 min) for failed GUI retries.
+- M6: toggling auto-save no longer resets unsaved settings; stale path shows as on in the tray too; the page picks up tray changes on focus.
+- Lows: pending folders are kept (no race with the next marker), worker spawned with `CreateProcessW` inheriting no handle at all and cwd = app data dir, `hook-save` catches panics and refuses UNC transcript paths before probing, `install` is a no-op when already installed, future-dated markers count as stale, `SessionEnd` waits 5 s, a save is forced when turns kept coming for 10 min, BOM accepted in Claude's settings, disabled checkbox label shows not-allowed, onboarding shows the autostart choice.
+- Tests: `tests/claude_hook_config.rs` (+BOM, no-op reinstall, backup cap), `tests/hook_save.rs`, unit tests for path validation and a 400 KB payload.
+- Pending manual checks (user): VS Code round trip, kill a worker mid-save → GUI finishes it, uninstall leaves other hooks intact. NSIS hook compiles only at bundling (Phase 7).

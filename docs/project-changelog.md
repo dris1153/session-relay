@@ -2,13 +2,17 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased (v0.2.0)
+## [0.2.0] — 2026-09-24
 
 ### Added
 - Session viewer: click a session to read its conversation (prompts, Claude's replies as Markdown, tool calls with their results, per-turn model and tokens, compactions and API errors), from this machine's file or straight from the cloud copy without restoring it. System events are hidden behind a switch; rewound prompts are left out.
 - Session viewer tools: search over the whole session, an outline of prompts, copy per message, Markdown export (with subagents), and a switch between both copies of a diverged session with a marker where they part; the Resolve dialog links to it.
 - Session viewer reading aids: the prompt of the turn being read stays at the top, a session opens at its newest message.
 - Session viewer details: diffs of file edits (Edit, Write, shell edits), full outputs Claude saved to `tool-results/`, subagent conversations opened inline (also nested), and pasted or returned images.
+
+### Changed
+- Links in Markdown open any http(s) or mailto address in the external browser (only GitHub and Git downloads before).
+- The frontend is built with pnpm (`pnpm install`, `pnpm tauri build`).
 
 ## [0.1.0] — 2026-09-24
 

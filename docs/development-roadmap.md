@@ -22,9 +22,9 @@ Target of the first release (v0.1.0): Windows, one GitHub account, save and rest
 - [ ] Install / uninstall check (hooks removed, app data kept)
 - [ ] Two-machine E2E checklist, including the Phase 5 manual checks (`claude -p`, VS Code, worker surviving the terminal)
 
-## v0.2.0 (planned)
+## v0.2.0 (released 2026-09-24)
 
-- Session transcript viewer (done, unreleased): click a session to read the whole conversation (messages, tool calls with results and diffs, nested subagents, metadata), local or cloud copy, with search, outline, Markdown export and a diverged-copy compare. Plan: `plans/260924-1148-session-transcript-viewer/`, starts after the v0.1.0 E2E.
+- Session transcript viewer: click a session to read the whole conversation (messages, tool calls with results and diffs, nested subagents, metadata), local or cloud copy, with search, outline, Markdown export and a diverged-copy compare. Plan: `plans/260924-1148-session-transcript-viewer/`.
 
 ## Deferred
 

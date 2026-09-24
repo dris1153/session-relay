@@ -3,22 +3,17 @@
 
 use serde_json::Value;
 
+use super::content::{self, Image, ToolResult};
 use super::{Block, Usage};
 
 pub enum Payload {
     /// `meta`: text Claude Code injected (skill bodies, compact summaries), not typed by the user.
     /// `context`: what the editor attached (`<ide_opened_file>`, `<ide_selection>`).
-    User { text: Option<String>, context: Vec<String>, images: usize, results: Vec<ToolResult>, meta: bool },
+    User { text: Option<String>, context: Vec<String>, images: Vec<Image>, results: Vec<ToolResult>, meta: bool },
     Assistant { message_id: Option<String>, model: Option<String>, usage: Option<Usage>, blocks: Vec<Block> },
     System { subtype: String, text: String },
     Attachment { kind: String, text: String },
     Other(String),
-}
-
-pub struct ToolResult {
-    pub id: String,
-    pub text: String,
-    pub is_error: bool,
 }
 
 pub struct Rec {
@@ -46,7 +41,7 @@ pub fn parse_line(line: &[u8]) -> Option<Rec> {
     let v: Value = serde_json::from_slice(line).ok()?;
     let kind = text_at(&v, "type")?;
     let payload = match kind.as_str() {
-        "user" => user(&v),
+        "user" => content::user(&v),
         "assistant" => assistant(&v),
         "system" => Payload::System { subtype: text_at(&v, "subtype").unwrap_or_default(), text: system_text(&v) },
         "attachment" => attachment(&v),
@@ -78,60 +73,16 @@ fn system_text(v: &Value) -> String {
     }
 }
 
-fn text_at(v: &Value, key: &str) -> Option<String> {
+pub fn text_at(v: &Value, key: &str) -> Option<String> {
     v.get(key)?.as_str().map(str::to_owned)
 }
 
-fn flag(v: &Value, key: &str) -> bool {
+pub fn flag(v: &Value, key: &str) -> bool {
     v.get(key).and_then(Value::as_bool).unwrap_or(false)
 }
 
 fn count(v: Option<&Value>, key: &str) -> u64 {
     v.and_then(|u| u.get(key)).and_then(Value::as_u64).unwrap_or(0)
-}
-
-fn user(v: &Value) -> Payload {
-    let meta = flag(v, "isMeta") || flag(v, "isCompactSummary") || flag(v, "isVisibleInTranscriptOnly");
-    let (mut texts, mut context, mut images, mut results) = (Vec::new(), Vec::new(), 0, Vec::new());
-    match v.pointer("/message/content") {
-        Some(Value::String(s)) => texts.push(s.clone()),
-        Some(Value::Array(blocks)) => {
-            for b in blocks {
-                match b.get("type").and_then(Value::as_str) {
-                    Some("text") => match text_at(b, "text") {
-                        Some(t) if t.trim_start().starts_with("<ide_") => context.push(t),
-                        t => texts.extend(t),
-                    },
-                    Some("image") => images += 1,
-                    Some("tool_result") => results.push(ToolResult {
-                        id: text_at(b, "tool_use_id").unwrap_or_default(),
-                        text: content_text(b.get("content")),
-                        is_error: flag(b, "is_error"),
-                    }),
-                    _ => {}
-                }
-            }
-        }
-        _ => {}
-    }
-    Payload::User { text: (!texts.is_empty()).then(|| texts.join("\n\n")), context, images, results, meta }
-}
-
-/// A tool result's `content` is a string or a list of text/image blocks.
-fn content_text(content: Option<&Value>) -> String {
-    match content {
-        Some(Value::String(s)) => s.clone(),
-        Some(Value::Array(parts)) => parts
-            .iter()
-            .filter_map(|p| match p.get("type").and_then(Value::as_str) {
-                Some("text") => text_at(p, "text"),
-                Some("image") => Some("[image]".to_owned()),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-            .join("\n"),
-        _ => String::new(),
-    }
 }
 
 fn assistant(v: &Value) -> Payload {
@@ -171,6 +122,11 @@ fn block(b: &Value) -> Option<Block> {
                 output: None,
                 output_truncated: false,
                 is_error: false,
+                diff: Vec::new(),
+                diff_truncated: false,
+                agent: None,
+                images: Vec::new(),
+                persisted: None,
             })
         }
         _ => None,
@@ -185,7 +141,7 @@ fn summary(input: &Value) -> String {
 fn attachment(v: &Value) -> Payload {
     let a = v.get("attachment");
     let kind = a.and_then(|a| text_at(a, "type")).unwrap_or_else(|| "attachment".into());
-    let text = ["filename", "displayPath", "path", "prompt", "content"].iter().find_map(|k| a.and_then(|a| a.get(*k)).map(|v| content_text(Some(v))).filter(|t| !t.is_empty())).unwrap_or_default();
+    let text = ["filename", "displayPath", "path", "prompt", "content"].iter().find_map(|k| a.and_then(|a| a.get(*k)).map(|v| content::content_text(Some(v), None)).filter(|t| !t.is_empty())).unwrap_or_default();
     Payload::Attachment { kind, text: shorten(&text, EVENT_TEXT_CHARS) }
 }
 

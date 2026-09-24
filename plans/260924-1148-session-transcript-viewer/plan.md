@@ -23,7 +23,7 @@ Design: [brainstorm report](../reports/brainstorm-260924-1148-session-transcript
 | Phase | Name | Effort | Status |
 |-------|------|--------|--------|
 | 1 | [Parser, IPC and basic viewer](./phase-01-parser-ipc-and-basic-viewer.md) | 1.5d | Complete |
-| 2 | [Diffs, persisted outputs, subagents, images](./phase-02-diffs-outputs-subagents-images.md) | 1d | Pending |
+| 2 | [Diffs, persisted outputs, subagents, images](./phase-02-diffs-outputs-subagents-images.md) | 1d | Complete |
 | 3 | [Search, outline, export, diverged compare](./phase-03-search-outline-export-compare.md) | 1d | Pending |
 
 Sequential 1→2→3.

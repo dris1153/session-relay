@@ -3,9 +3,10 @@ import { Button } from "../../components/button";
 import { ErrorNote } from "../../components/onboarding-card";
 import { formatCount, formatDateTime } from "../../lib/format";
 import { errorText, t, useLanguage } from "../../lib/i18n";
-import type { Item, SessionMeta, Side } from "../../lib/tauri-commands";
+import type { SessionMeta, Side } from "../../lib/tauri-commands";
 import { useSessionView } from "../../lib/use-session-view";
-import { MessageItem } from "./message-item";
+import { isShown, MessageItem } from "./message-item";
+import { ShowSystem } from "./show-system";
 
 export type ViewedSession = { keyHash: string; sessionId: string; side: Side };
 
@@ -15,7 +16,7 @@ export function SessionViewer({ session, onBack }: { session: ViewedSession; onB
   const { view, error, detail, retry } = useSessionView(session.keyHash, session.sessionId, session.side);
   const [showSystem, setShowSystem] = useState(false);
   // Keyed by position in the whole list, so toggling system events keeps opened blocks open.
-  const items = view?.items.map((item, index) => ({ item, index })).filter(({ item }) => showSystem || visible(item)) ?? [];
+  const items = view?.items.map((item, index) => ({ item, index })).filter(({ item }) => showSystem || isShown(item)) ?? [];
 
   return (
     <article className="flex min-w-0 flex-1 flex-col">
@@ -44,21 +45,16 @@ export function SessionViewer({ session, onBack }: { session: ViewedSession; onB
         )}
         {!view && !error && <p className="text-body text-ashen">{t("viewer.loading")}</p>}
         {view && items.length === 0 && <p className="text-body text-ashen">{t("viewer.empty")}</p>}
-        <ol className="mx-auto flex max-w-[820px] flex-col gap-6">
-          {items.map(({ item, index }) => (
-            <MessageItem key={index} item={item} detail={detail} />
-          ))}
-        </ol>
+        <ShowSystem.Provider value={showSystem}>
+          <ol className="mx-auto flex max-w-[820px] flex-col gap-6">
+            {items.map(({ item, index }) => (
+              <MessageItem key={index} item={item} detail={detail} />
+            ))}
+          </ol>
+        </ShowSystem.Provider>
       </div>
     </article>
   );
-}
-
-/** Hidden by default: system noise, and turns that hold only signature-only thinking. */
-function visible(item: Item): boolean {
-  if (item.kind === "event") return !item.noisy;
-  if (item.kind === "assistant") return item.blocks.some((b) => b.type !== "thinking" || b.text);
-  return true;
 }
 
 function MetaLines({ meta, side }: { meta: SessionMeta; side: Side }) {

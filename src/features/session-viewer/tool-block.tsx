@@ -1,9 +1,13 @@
 import { useState } from "react";
 import { errorText, t } from "../../lib/i18n";
-import { errorCode, type Block } from "../../lib/tauri-commands";
+import { errorCode, type Block, type Detail } from "../../lib/tauri-commands";
+import { DiffView } from "./diff-view";
+import { ImageThumbs } from "./image-thumbs";
+import { SubagentBlock } from "./subagent-block";
 
 type Tool = Extract<Block, { type: "tool" }>;
-export type LoadDetail = (reference: string) => Promise<string>;
+export type LoadDetail = (reference: string) => Promise<Detail>;
+
 
 /** One tool call with its result, collapsed to `Name · what it did` until opened. */
 export function ToolBlock({ tool, detail }: { tool: Tool; detail: LoadDetail }) {
@@ -17,26 +21,34 @@ export function ToolBlock({ tool, detail }: { tool: Tool; detail: LoadDetail }) 
         {tool.is_error && <span className="shrink-0 rounded-control bg-soft-stone px-1.5 text-caption text-clay">{t("viewer.tool_error")}</span>}
       </summary>
       <div className="flex flex-col gap-3 border-t border-chalk px-3 py-3">
+        {tool.agent && <SubagentBlock agent={tool.agent} detail={detail} />}
+        {tool.diff.length > 0 && <DiffView files={tool.diff} truncated={tool.diff_truncated} />}
         <Body label={t("viewer.input")} text={tool.input} truncated={tool.input_truncated} load={() => detail(`in:${tool.id}`)} />
         {tool.output === null ? (
           <p className="text-caption text-ashen">{t("viewer.no_result")}</p>
         ) : (
           <Body label={t("viewer.output")} text={tool.output} truncated={tool.output_truncated} load={() => detail(`out:${tool.id}`)} />
         )}
+        <ImageThumbs refs={tool.images} detail={detail} />
       </div>
     </details>
   );
 }
 
-function Body({ label, text, truncated, load }: { label: string; text: string; truncated: boolean; load: () => Promise<string> }) {
+function Body({ label, text, truncated, load }: { label: string; text: string; truncated: boolean; load: () => Promise<Detail> }) {
   const [full, setFull] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const showAll = () => {
     setLoading(true);
     setError(null);
     load()
-      .then(setFull, (e) => setError(errorCode(e)))
+      .then((d) => {
+        if (d.kind === "text") setFull(d.text);
+        // Either way the button goes: there is nothing more to load.
+        setNote(d.kind === "gone" ? t("viewer.output_gone") : d.kind === "text" && d.truncated ? t("viewer.detail_cut") : "");
+      }, (e) => setError(errorCode(e)))
       .finally(() => setLoading(false));
   };
 
@@ -44,11 +56,12 @@ function Body({ label, text, truncated, load }: { label: string; text: string; t
     <div className="flex flex-col gap-1">
       <span className="text-caption font-medium uppercase tracking-wide text-pebble">{label}</span>
       <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-control bg-soft-stone p-3 font-mono text-caption text-carbon-ink">{full ?? text}</pre>
-      {truncated && full === null && (
+      {truncated && full === null && note === null && (
         <button type="button" onClick={showAll} disabled={loading} className="self-start rounded-control px-1 text-caption text-graphite underline decoration-mist underline-offset-4 hover:text-carbon-ink disabled:opacity-50">
           {loading ? t("common.working") : t("viewer.show_all")}
         </button>
       )}
+      {note && <span className="text-caption text-ashen">{note}</span>}
       {error && <span className="text-caption text-clay">{errorText(error)}</span>}
     </div>
   );

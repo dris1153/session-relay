@@ -141,7 +141,7 @@ Hooks are registered in `<claude_home>/settings.json` (both events, one group ea
 | `link_project(key_hash, local_root, force)` | `{ origin_matches, found_remote? }` |
 | `delete_remote_session(key_hash, session_id)` · `open_project_folder(key_hash)` · `clear_local_data` | () |
 | `scan_workspaces` · `clone_project(key_hash, root)` · `cancel_clone` | `Checkout { remote, path }[]` · destination path · () |
-| `open_session(key_hash, session_id, side: local\|cloud)` · `session_detail(…, reference)` | `SessionView { meta, items }` (tool input/output cut to 2 KB / 8 KB previews) · full text of `in:<tool id>` / `out:<tool id>` |
+| `open_session(key_hash, session_id, side: local\|cloud)` · `session_detail(…, reference)` | `SessionView { meta, items }` (tool input/output cut to 2 KB / 8 KB previews, diffs to 400 lines) · `Detail` for a ref path such as `agent:<id>/out:<tool id>`: `text` (≤ 2 MB) \| `session` (a subagent) \| `image` (data URI) \| `gone` |
 
 `ProjectView { key_hash, remote, owner, name, subpath, status, local_root?, files: FileRow[], unreadable }`; `FileRow { rel, state, conflict, title?, size?, saved_by?, saved_at?, local_size?, local_modified? }`.
 

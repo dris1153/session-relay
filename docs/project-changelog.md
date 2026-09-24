@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 - Session viewer: click a session to read its conversation (prompts, Claude's replies as Markdown, tool calls with their results, per-turn model and tokens, compactions and API errors), from this machine's file or straight from the cloud copy without restoring it. System events are hidden behind a switch; rewound prompts are left out.
+- Session viewer details: diffs of file edits (Edit, Write, shell edits), full outputs Claude saved to `tool-results/`, subagent conversations opened inline (also nested), and pasted or returned images.
 
 ## [0.1.0] — 2026-09-24
 

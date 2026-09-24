@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "Diffs, persisted outputs, subagents, images"
-status: pending
+status: completed
 priority: P2
 effort: "1d"
 dependencies: [1]
@@ -46,14 +46,14 @@ Deepen tool blocks: Edit/Write diffs, full outputs Claude saved to `tool-results
 7. Locales; clippy, tests, tsc, build; code review.
 
 ## Todo List
-- [ ] fixtures
-- [ ] tool_result mapping
-- [ ] read_rel (local + cloud)
-- [ ] persisted outputs
-- [ ] subagents nested
-- [ ] images
-- [ ] UI pieces
-- [ ] review
+- [x] fixtures
+- [x] tool_result mapping
+- [x] load_rel (local + cloud)
+- [x] persisted outputs
+- [x] subagents nested
+- [x] images
+- [x] UI pieces
+- [x] review
 
 ## Success Criteria
 - [ ] Every Edit/Write in a real session shows a readable diff
@@ -68,3 +68,17 @@ Deepen tool blocks: Edit/Write diffs, full outputs Claude saved to `tool-results
 ## Security Considerations
 - Detail refs are parsed strictly; `read_rel` only serves `<sid>/tool-results/<name>` and `<sid>/subagents/agent-<id>.{jsonl,meta.json}` under the session folder; links/junctions refused like `transfer::refuse_links`.
 - Image data URIs only for allow-listed media types.
+
+## Implementation Notes (2026-09-24)
+- Engine: `transcript/content.rs` (user content, images with a type allow-list and a 10 MB cap), `tool_result.rs` (diffs, agent ref, saved output), `resolve.rs` (ref paths such as `agent:<a>/agent:<b>/out:<tool>`, depth ≤ 8), `usage.rs`; `source::load_rel` shares the loader with `load` and accepts only paths `file_set::classify` accepts under `tool-results/` and `subagents/`.
+- Agent ↔ file: `toolUseResult.agentId` (present on all 420 real Agent results) instead of scanning `*.meta.json`. Nested agents are assumed to live in the same `subagents/` folder (no real sample yet).
+- `session_detail` returns `text {text, truncated}` (capped at 2 MB) | `session` | `image` | `gone` (saved output removed by Claude: the preview stays with a note).
+- Cache: at most 2 sessions and 10 subagents, most recently used first; a new parse of a session drops its subagents; subagent files are reread when their signature changes (async agents keep writing).
+- Not done: Bash stdout/stderr split (the result text Claude saw already holds both; the error flag marks failures); "show all" for diffs over 400 lines (the note says only part is shown).
+- Real data (this session, 28 MB): 501 diffs, 21 agents (all 21 files found), 4 saved outputs.
+
+## Review Log (2026-09-24)
+Report: [code-reviewer-260924-phase-02-details.md](./reports/code-reviewer-260924-phase-02-details.md) · 7/10, 0 critical, 2 high, 4 medium, 8 low. Security: no issue found.
+
+Fixed: H1 a FIFO cache shared by sessions and agents evicted the session after 12 agents (now separate budgets, LRU, unit tests); H2 memory (2 sessions again; images of skill loads and notices are no longer stored); M1 removed saved outputs show a note instead of an error; M2 subagents reread on change; M3 detail text capped at 2 MB; M4 image cap, nested-agent and resolver tests, diff note wording; L device names (`CON`, `NUL`) rejected through `file_set::classify` and non-files refused; Whole files from the cloud are not path-expanded; `persistedOutputPath` preferred; `bashEditDiff.moreFiles` marks the diff as partial; empty image wrapper removed; images named for screen readers; the "Show system events" switch applies inside subagents; ref depth capped.
+Not changed: the import cycle message-item → tool-block → subagent-block → message-item (render-time only, safe in ESM).

@@ -44,7 +44,7 @@ pub fn pull(engine: &Engine, sha: &str, key_hash: &str, project_dir: &Path, targ
 }
 
 /// A junction or symlink inside the project dir could redirect a restore elsewhere.
-fn refuse_links(project_dir: &Path, target: &Path) -> Result<()> {
+pub fn refuse_links(project_dir: &Path, target: &Path) -> Result<()> {
     let rel = target.strip_prefix(project_dir).map_err(|_| Error::Invalid(format!("{} outside project dir", target.display())))?;
     let mut path = project_dir.to_path_buf();
     for part in rel.components() {

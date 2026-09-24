@@ -4,7 +4,7 @@ use session_relay_lib::engine::error::Error;
 use session_relay_lib::engine::overview;
 use session_relay_lib::engine::sync::SyncMode;
 use session_relay_lib::engine::transcript::source::{load, Side};
-use session_relay_lib::engine::transcript::{parse, Block, Item, Usage, OUTPUT_PREVIEW};
+use session_relay_lib::engine::transcript::{parse, Block, Detail, Item, Usage, OUTPUT_PREVIEW};
 use support::*;
 
 const BASIC: &[u8] = include_bytes!("fixtures/transcripts/basic.jsonl");
@@ -37,7 +37,7 @@ fn groups_one_message_pairs_tool_results_and_skips_broken_lines() {
     assert_eq!((m.title.as_deref(), m.version.as_deref(), m.git_branch.as_deref()), (Some("Fix login bug"), Some("2.1.280"), Some("main")));
     assert_eq!((m.started_at.as_deref(), m.ended_at.as_deref()), (Some("2026-09-24T10:00:00.000Z"), Some("2026-09-24T10:00:13.000Z")));
     assert_eq!((m.prompts, m.tool_calls, m.off_branch), (1, 1, 0));
-    assert!(t.detail("in:toolu_1").unwrap().contains("npm run lint"));
+    assert!(matches!(t.detail("in:toolu_1"), Some(Detail::Text(s)) if s.contains("npm run lint")));
 }
 
 #[test]
@@ -60,7 +60,7 @@ fn hides_a_rewound_prompt_and_follows_a_compaction() {
             "event:tool_result~",
         ]
     );
-    assert!(matches!(&t.items[0], Item::User { images: 1, .. }));
+    assert!(matches!(&t.items[0], Item::User { images, .. } if images.len() == 1));
     let Item::Assistant { blocks, .. } = &t.items[1] else { panic!() };
     assert!(matches!(&blocks[0], Block::Tool { summary, output: Some(o), .. } if summary == "Review the code" && o == "No bugs found"));
     assert_eq!(t.meta.models, ["claude-sonnet-5", "claude-opus-5-5"], "the rewound answer's model is not counted");
@@ -97,7 +97,7 @@ fn previews_long_outputs_and_serves_the_rest() {
     let Item::Assistant { blocks, .. } = &t.view()[1] else { panic!() };
     let Block::Tool { output: Some(o), output_truncated, .. } = &blocks[0] else { panic!() };
     assert!(*output_truncated && o.len() <= OUTPUT_PREVIEW && o.chars().all(|c| c == 'é'));
-    assert_eq!(t.detail("out:t").unwrap(), long);
+    assert!(matches!(t.detail("out:t"), Some(Detail::Text(s)) if s == long));
     assert!(parse(b"\xff\xfe garbage\n{}\n[1,2]\n").items.is_empty(), "garbage never fails");
 }
 
@@ -110,11 +110,16 @@ fn parse_real() {
     let t = parse(&bytes);
     let parsed = started.elapsed();
     let json = serde_json::to_vec(&t.view()).unwrap();
-    let unanswered = t.items.iter().map(|i| match i {
-        Item::Assistant { blocks, .. } => blocks.iter().filter(|b| matches!(b, Block::Tool { output: None, .. })).count(),
-        _ => 0,
-    }).sum::<usize>();
-    println!("{} MB → {} items, parse {parsed:?}, view {:?}, view json {} KB, tools without result {unanswered}, meta {:?}", bytes.len() >> 20, t.items.len(), started.elapsed() - parsed, json.len() >> 10, t.meta);
+    let calls: Vec<&Block> = t.items.iter().flat_map(|i| match i {
+        Item::Assistant { blocks, .. } => blocks.iter().collect(),
+        _ => Vec::new(),
+    }).collect();
+    let count = |f: &dyn Fn(&Block) -> bool| calls.iter().filter(|b| f(b)).count();
+    let unanswered = count(&|b| matches!(b, Block::Tool { output: None, .. }));
+    let diffs = count(&|b| matches!(b, Block::Tool { diff, .. } if !diff.is_empty()));
+    let agents = count(&|b| matches!(b, Block::Tool { agent: Some(_), .. }));
+    let saved = count(&|b| matches!(t.detail(&format!("out:{}", match b { Block::Tool { id, .. } => id.as_str(), _ => "" })), Some(Detail::File(_))));
+    println!("{} MB → {} items, parse {parsed:?}, view {:?}, view json {} KB, tools without result {unanswered}, diffs {diffs}, agents {agents}, saved outputs {saved}, meta {:?}", bytes.len() >> 20, t.items.len(), started.elapsed() - parsed, json.len() >> 10, t.meta);
 }
 
 #[test]

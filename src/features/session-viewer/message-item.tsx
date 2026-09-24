@@ -1,6 +1,7 @@
 import { formatClock, formatCount, formatDateTime } from "../../lib/format";
 import { t } from "../../lib/i18n";
 import type { Block, Item } from "../../lib/tauri-commands";
+import { ImageThumbs } from "./image-thumbs";
 import { MarkdownText } from "./markdown-text";
 import { ToolBlock, type LoadDetail } from "./tool-block";
 
@@ -9,6 +10,13 @@ const LAZY = "[content-visibility:auto] [contain-intrinsic-size:auto_120px]";
 /** Events whose text reads well inline; the rest keep their text behind a disclosure. */
 const INLINE = new Set(["compact", "api_error", "mention", "queued", "interrupted"]);
 const LABELED = new Set([...INLINE, "ide", "meta", "notification", "tool_result"]);
+
+/** Hidden unless system events are shown: system noise, and turns with only signature-only thinking. */
+export function isShown(item: Item): boolean {
+  if (item.kind === "event") return !item.noisy;
+  if (item.kind === "assistant") return item.blocks.some((b) => b.type !== "thinking" || b.text);
+  return true;
+}
 
 export function MessageItem({ item, detail }: { item: Item; detail: LoadDetail }) {
   if (item.kind === "event") return <EventLine item={item} />;
@@ -27,7 +35,11 @@ export function MessageItem({ item, detail }: { item: Item; detail: LoadDetail }
       {user ? (
         <div className="rounded-card bg-soft-stone px-5 py-4">
           <p className="whitespace-pre-wrap break-words text-[15px] text-carbon-ink">{item.text}</p>
-          {item.images > 0 && <p className="mt-2 text-caption text-ashen">{t("viewer.images", { count: item.images })}</p>}
+          {item.images.length > 0 && (
+            <div className="mt-2">
+              <ImageThumbs refs={item.images} detail={detail} />
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-3">

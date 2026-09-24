@@ -1,16 +1,22 @@
 use std::collections::{HashMap, HashSet};
 
 use super::branch::{self, is_conversation};
+use super::content::{Image, ToolResult};
 use super::records::{self, Payload, Rec};
+use super::tool_result;
 use super::{Block, Item, Transcript};
 use crate::engine::title::TitleScan;
 
-pub fn build(bytes: &[u8]) -> Transcript {
+/// `agent`: a subagent's file, whose records are all marked as sidechain.
+pub fn build(bytes: &[u8], agent: bool) -> Transcript {
     let mut title = TitleScan::default();
     let mut recs = Vec::new();
     for line in bytes.split(|&b| b == b'\n').map(|l| l.strip_suffix(b"\r").unwrap_or(l)).filter(|l| !l.is_empty()) {
         title.feed(line);
         recs.extend(records::parse_line(line));
+    }
+    if agent {
+        recs.iter_mut().for_each(|r| r.sidechain = false);
     }
     let rewound = branch::rewound(&recs);
     let mut t = Transcript::default();
@@ -100,11 +106,11 @@ fn add(t: &mut Transcript, messages: &mut HashMap<String, usize>, rec: Rec) {
                 t.items.push(event(&uuid, &at, "ide", true, c));
             }
             for r in results {
-                if !attach_result(t, &r.id, r.text.clone(), r.is_error) {
-                    t.items.push(event(&uuid, &at, "tool_result", true, r.text));
+                if let Some(orphan) = attach_result(t, r) {
+                    t.items.push(event(&uuid, &at, "tool_result", true, orphan));
                 }
             }
-            let Some(text) = text.filter(|s| !s.trim().is_empty()).or_else(|| (images > 0).then(String::new)) else { return };
+            let Some(text) = text.filter(|s| !s.trim().is_empty()).or_else(|| (!images.is_empty()).then(String::new)) else { return };
             if meta {
                 t.items.push(event(&uuid, &at, "meta", true, text));
             } else if text.starts_with(records::INTERRUPTED) {
@@ -113,6 +119,8 @@ fn add(t: &mut Transcript, messages: &mut HashMap<String, usize>, rec: Rec) {
                 t.items.push(event(&uuid, &at, "notification", true, text));
             } else {
                 t.meta.prompts += 1;
+                // Only prompts show their images; skill loads and notices carry unused ones.
+                let images = store_images(t, images);
                 t.items.push(Item::User { uuid: uuid.unwrap_or_default(), at, text: command_prompt(&text).unwrap_or(text), images });
             }
         }
@@ -137,13 +145,28 @@ fn add(t: &mut Transcript, messages: &mut HashMap<String, usize>, rec: Rec) {
     }
 }
 
-fn attach_result(t: &mut Transcript, id: &str, text: String, error: bool) -> bool {
-    let Some(&(item, block)) = t.tools.get(id) else { return false };
-    let Item::Assistant { blocks, .. } = &mut t.items[item] else { return false };
-    let Block::Tool { output, is_error, .. } = &mut blocks[block] else { return false };
-    *output = Some(text);
-    *is_error = error;
-    true
+/// Pairs a result with its call; hands the text back when there is no such call.
+fn attach_result(t: &mut Transcript, r: ToolResult) -> Option<String> {
+    let Some(&(item, block)) = t.tools.get(&r.id) else { return Some(r.text) };
+    let refs = store_images(t, r.images);
+    let Item::Assistant { blocks, .. } = &mut t.items[item] else { return Some(r.text) };
+    let Block::Tool { name, input, output, is_error, diff, diff_truncated, agent, images, persisted, .. } = &mut blocks[block] else { return Some(r.text) };
+    let extras = tool_result::extras(name, input, &r.text, r.extra.as_ref());
+    if let Some(a) = &extras.agent {
+        t.agents.insert(a.id.clone());
+    }
+    (*output, *is_error, *diff, *diff_truncated, *agent, *images, *persisted) = (Some(r.text), r.is_error, extras.diff, extras.more_files, extras.agent, refs, extras.persisted);
+    None
+}
+
+fn store_images(t: &mut Transcript, images: Vec<Image>) -> Vec<String> {
+    images
+        .into_iter()
+        .map(|img| {
+            t.images.push(img);
+            format!("img:{}", t.images.len() - 1)
+        })
+        .collect()
 }
 
 fn event(uuid: &Option<String>, at: &Option<String>, kind: &str, noisy: bool, text: String) -> Item {

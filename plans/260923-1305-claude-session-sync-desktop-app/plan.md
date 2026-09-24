@@ -27,7 +27,7 @@ Research: [Tauri v2 Windows](./research/researcher-01-tauri-v2-windows-report.md
 | 2 | [Rust Sync Core](./phase-02-rust-sync-core.md) | 4.5d | Complete |
 | 3 | [GitHub App Auth, Key Setup & Onboarding](./phase-03-github-auth-key-setup-onboarding.md) | 2.5d | Complete |
 | 4 | [Dashboard, Linking, Tray & i18n](./phase-04-dashboard-ui-and-tray.md) | 4d | Complete |
-| 4b | [Dashboard Loading Speed & Skeleton UI](./phase-04b-dashboard-loading-speed-and-skeleton.md) | 1d | Pending |
+| 4b | [Dashboard Loading Speed & Skeleton UI](./phase-04b-dashboard-loading-speed-and-skeleton.md) | 1d | Complete |
 | 5 | [Auto-Save Hooks (Stop + SessionEnd)](./phase-05-session-end-hook-auto-save.md) | 2d | Pending |
 | 6 | [Workspace Scan, Clone & Conflicts](./phase-06-workspace-scan-clone-conflicts.md) | 1.5d | Pending |
 | 7 | [Docs & Release](./phase-07-docs-and-release.md) | 1d | Pending |

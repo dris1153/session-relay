@@ -32,3 +32,18 @@ pub fn mtime_ns(meta: &std::fs::Metadata) -> i64 {
 pub fn system_time_from_ns(ns: i64) -> SystemTime {
     UNIX_EPOCH + Duration::from_nanos(u64::try_from(ns).unwrap_or(0))
 }
+
+/// Git `*.lock` files under a `.git` dir (objects excluded), left behind by a killed git.
+pub fn remove_lock_files(dir: &Path, depth: usize) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        match entry.file_type() {
+            Ok(t) if t.is_dir() && depth < 6 && entry.file_name() != "objects" => remove_lock_files(&path, depth + 1),
+            Ok(t) if t.is_file() && path.extension().is_some_and(|x| x == "lock") => {
+                let _ = std::fs::remove_file(&path);
+            }
+            _ => {}
+        }
+    }
+}

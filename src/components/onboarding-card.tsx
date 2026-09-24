@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
 import { t } from "../lib/i18n";
+import { LanguageSwitch } from "./language-switch";
 
 /** Centered editorial card on the parchment canvas, with Clay step dots. */
 export function OnboardingCard({ step, total, title, lead, children }: { step: number; total: number; title: string; lead?: string; children: ReactNode }) {
   return (
     <main className="flex min-h-screen items-center justify-center px-6 py-16">
+      <LanguageSwitch />
       <section className="w-full max-w-[560px] rounded-card-elevated bg-paper-white p-8">
         <div className="mb-8 flex gap-2" aria-hidden="true">
           {Array.from({ length: total }, (_, i) => (

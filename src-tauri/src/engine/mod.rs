@@ -25,6 +25,7 @@ pub mod normalize;
 pub mod overview;
 pub mod path_decode;
 pub mod paths;
+pub mod progress;
 pub mod project_identity;
 mod publish;
 pub mod remote;

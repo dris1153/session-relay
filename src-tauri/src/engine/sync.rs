@@ -14,6 +14,7 @@ use super::live_sessions::live_session_ids;
 use super::lock::SyncLock;
 use super::manifest::{FileEntry, Manifest};
 use super::normalize::PathRewrite;
+use super::progress::Progress;
 use super::publish::{commit_and_push, sparse_paths};
 use super::project_identity::ProjectKey;
 use super::remote;
@@ -105,7 +106,9 @@ fn sync_once(engine: &Engine, links: &mut Links, req: &Request, report: &mut Syn
     let wanted = |rel: &str| req.only.is_none_or(|only| only.iter().any(|r| r == rel));
 
     let live = live_session_ids(&engine.cfg.sessions_registry_dir());
-    for f in files.iter().filter(|f| wanted(&f.rel) && should_pull(req.mode, f, explicit)) {
+    let to_pull: Vec<&FileEval> = files.iter().filter(|f| wanted(&f.rel) && should_pull(req.mode, f, explicit)).collect();
+    for (i, f) in to_pull.iter().enumerate() {
+        engine.repo.progress.report(Progress::Restore { current: i + 1, total: to_pull.len() });
         let (Some(sha), Some(entry)) = (sha.as_deref(), manifest.as_ref().and_then(|m| m.files.get(&f.rel))) else { continue };
         if session_id(&f.rel).is_some_and(|sid| live.contains(sid)) {
             report.skipped.push((f.rel.clone(), "session_open".into()));
@@ -157,7 +160,8 @@ fn sync_once(engine: &Engine, links: &mut Links, req: &Request, report: &mut Syn
     let mut next = manifest.clone().unwrap_or_else(|| Manifest::new(key));
     let mut new_base: Vec<(String, BaseEntry)> = Vec::new();
     let mut pushed = Vec::new();
-    for f in to_push {
+    for (i, f) in to_push.iter().enumerate() {
+        engine.repo.progress.report(Progress::Save { current: i + 1, total: to_push.len() });
         let old = manifest.as_ref().and_then(|m| m.files.get(&f.rel));
         let prepared = (|| -> Result<_> {
             if let (Some(sha), Some(old)) = (sha.as_deref(), old.filter(|_| needs_cloud_backup(f))) {

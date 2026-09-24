@@ -48,7 +48,7 @@ fn lease_locks_busy_and_incremental_upload() {
 
     // Status checks never run while a save holds the lock.
     let held = SyncLock::try_acquire(&a.engine.cfg.lock_file(), "test").unwrap();
-    assert!(matches!(overview::refresh(&a.engine), Err(Error::Busy)));
+    assert!(matches!(overview::refresh(&a.engine, std::time::Duration::ZERO), Err(Error::Busy)));
     assert!(matches!(a.try_sync(SyncMode::Auto, None), Err(Error::Busy)));
     drop(held);
 

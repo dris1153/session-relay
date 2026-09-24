@@ -48,6 +48,11 @@
     font-size: var(--text-body);
   }
 
+  :focus-visible {
+    outline: 2px solid var(--color-graphite);
+    outline-offset: 2px;
+  }
+
   /* Tailwind v4 preflight no longer sets pointer on buttons. */
   button:not(:disabled),
   [role="button"]:not(:disabled),

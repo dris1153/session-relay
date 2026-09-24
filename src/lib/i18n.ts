@@ -16,6 +16,10 @@ export function setLanguage(language: Language) {
   listeners.forEach((notify) => notify());
 }
 
+export function currentLanguage(): Language {
+  return current;
+}
+
 /** Re-renders the caller when the language changes. */
 export function useLanguage(): Language {
   return useSyncExternalStore(

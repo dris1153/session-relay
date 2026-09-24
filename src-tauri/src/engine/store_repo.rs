@@ -2,13 +2,18 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use super::error::{Error, IoContext, Result};
-use super::git_process::{failure, GitEnv};
+use super::fs_util::remove_lock_files;
+use super::git_process::{failure, GitEnv, Output};
+use super::progress::{Progress, ProgressSink};
 
 const LOCAL: Duration = Duration::from_secs(60);
 const WORKTREE: Duration = Duration::from_secs(600);
 const NETWORK: Duration = Duration::from_secs(180);
-const PUSH: Duration = Duration::from_secs(600);
+/// Transfers of any size: git is killed only after this long without progress output.
+const STALL: Duration = Duration::from_secs(120);
+const MAINTENANCE: Duration = Duration::from_secs(600);
 const GC_EVERY: Duration = Duration::from_secs(7 * 24 * 3600);
+const LAST_SNAPSHOT: &str = "refs/session-relay/last";
 
 /// Local clone of the storage repo. Remote history is always one orphan snapshot commit.
 /// Callers must hold `SyncLock` for anything that writes the clone.
@@ -16,11 +21,16 @@ pub struct StoreRepo {
     dir: PathBuf,
     remote_url: String,
     git: GitEnv,
+    pub progress: ProgressSink,
 }
 
 impl StoreRepo {
     pub fn new(dir: PathBuf, remote_url: String, git: GitEnv) -> Self {
-        Self { dir, remote_url, git }
+        Self { dir, remote_url, git, progress: ProgressSink::default() }
+    }
+
+    fn transfer(&self, args: &[&str], step: fn(u8) -> Progress) -> Result<Output> {
+        self.git.run_watched(&self.dir, args, STALL, &mut self.progress.git_reporter(step))
     }
 
     pub fn dir(&self) -> &Path {
@@ -49,11 +59,34 @@ impl StoreRepo {
     /// Fetches the current snapshot; None when the remote has no `main` yet.
     pub fn fetch(&self) -> Result<Option<String>> {
         if self.remote_head()?.is_none() {
+            self.remember(None)?;
             return Ok(None);
         }
-        self.git.check(&self.dir, &["fetch", "-q", "--depth", "1", "--no-tags", "origin", "main"], NETWORK)?;
+        let args = ["fetch", "--progress", "--depth", "1", "--no-tags", "origin", "main"];
+        let out = self.transfer(&args, |percent| Progress::Download { percent })?;
+        if !out.status_ok {
+            return Err(failure(&args.join(" "), &out.stderr));
+        }
         let sha = self.git.check(&self.dir, &["rev-parse", "FETCH_HEAD"], LOCAL)?;
-        Ok(Some(String::from_utf8_lossy(&sha).trim().to_string()))
+        let sha = String::from_utf8_lossy(&sha).trim().to_string();
+        self.remember(Some(&sha))?;
+        Ok(Some(sha))
+    }
+
+    /// Records the newest snapshot this clone has seen, fetched or pushed by any process.
+    fn remember(&self, sha: Option<&str>) -> Result<()> {
+        match sha {
+            Some(sha) => self.git.check(&self.dir, &["update-ref", LAST_SNAPSHOT, sha], LOCAL)?,
+            None => self.git.check(&self.dir, &["update-ref", "-d", LAST_SNAPSHOT], LOCAL)?,
+        };
+        Ok(())
+    }
+
+    /// Newest snapshot known without the network: statuses stay right offline and after a
+    /// save whose follow-up fetch could not run.
+    pub fn last_snapshot(&self) -> Option<String> {
+        let out = self.git.run(&self.dir, &["rev-parse", "-q", "--verify", &format!("{LAST_SNAPSHOT}^{{commit}}")], LOCAL).ok()?;
+        out.status_ok.then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
     }
 
     /// None only when the path is absent from the snapshot; any git failure is an error
@@ -119,10 +152,10 @@ impl StoreRepo {
     pub fn push_lease(&self, commit: &str, expected: Option<&str>) -> Result<()> {
         let lease = format!("--force-with-lease=refs/heads/main:{}", expected.unwrap_or(""));
         let target = format!("{commit}:refs/heads/main");
-        let out = self.git.run(&self.dir, &["push", "--porcelain", &lease, "origin", &target], PUSH)?;
+        let out = self.transfer(&["push", "--progress", "--porcelain", &lease, "origin", &target], |percent| Progress::Upload { percent })?;
         let text = format!("{}{}", String::from_utf8_lossy(&out.stdout), out.stderr);
         if out.status_ok {
-            Ok(())
+            self.remember(Some(commit))
         } else if text.contains("stale info") || text.contains("[rejected]") || text.contains("fetch first") {
             Err(Error::LeaseRejected)
         } else {
@@ -147,28 +180,14 @@ impl StoreRepo {
         let stamp = git_dir.join("session-relay-last-gc");
         let due = std::fs::metadata(&stamp).and_then(|m| m.modified()).map_or(true, |t| SystemTime::now().duration_since(t).unwrap_or_default() > GC_EVERY);
         if due {
-            if !self.git.run(&self.dir, &["fsck", "--connectivity-only", "--no-dangling"], PUSH)?.status_ok {
+            if !self.git.run(&self.dir, &["fsck", "--connectivity-only", "--no-dangling"], MAINTENANCE)?.status_ok {
                 std::fs::remove_dir_all(&self.dir).at(&self.dir)?;
                 return self.ensure_clone();
             }
             let _ = self.git.run(&self.dir, &["reflog", "expire", "--expire=now", "--all"], LOCAL);
-            let _ = self.git.run(&self.dir, &["gc", "-q", "--prune=now"], PUSH);
+            let _ = self.git.run(&self.dir, &["gc", "-q", "--prune=now"], MAINTENANCE);
             std::fs::write(&stamp, b"").at(&stamp)?;
         }
         Ok(())
-    }
-}
-
-fn remove_lock_files(dir: &Path, depth: usize) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        match entry.file_type() {
-            Ok(t) if t.is_dir() && depth < 6 && entry.file_name() != "objects" => remove_lock_files(&path, depth + 1),
-            Ok(t) if t.is_file() && path.extension().is_some_and(|x| x == "lock") => {
-                let _ = std::fs::remove_file(&path);
-            }
-            _ => {}
-        }
     }
 }

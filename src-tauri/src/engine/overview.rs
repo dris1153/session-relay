@@ -50,9 +50,10 @@ pub struct Overview {
     pub errors: Vec<(String, String)>,
 }
 
-/// Fetches the latest snapshot. `Busy` means a save is running; keep the cached overview.
-pub fn refresh(engine: &Engine) -> Result<Option<String>> {
-    let _lock = SyncLock::try_acquire(&engine.cfg.lock_file(), "refresh")?;
+/// Fetches the latest snapshot, waiting up to `wait` for a running save. `Busy` after that:
+/// keep the cached overview.
+pub fn refresh(engine: &Engine, wait: Duration) -> Result<Option<String>> {
+    let _lock = SyncLock::acquire_within(&engine.cfg.lock_file(), "refresh", wait)?;
     engine.repo.clear_stale_locks();
     engine.with_store(|| {
         engine.repo.ensure_clone()?;

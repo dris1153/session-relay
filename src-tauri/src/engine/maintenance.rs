@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::time::Duration;
 
 use super::backup;
 use super::context::Engine;
@@ -7,9 +8,9 @@ use super::file_set::TEMP_SUFFIX;
 use super::lock::SyncLock;
 
 /// Startup cleanup after crashes or kills: rebuilds a broken store clone, removes our temp
-/// files from Claude project dirs and trims backups. Skipped if a save is running.
+/// files from Claude project dirs and trims backups. Waits for a running save first.
 pub fn on_startup(engine: &Engine) -> Result<()> {
-    let _lock = SyncLock::try_acquire(&engine.cfg.lock_file(), "maintenance")?;
+    let _lock = SyncLock::acquire_within(&engine.cfg.lock_file(), "maintenance", Duration::from_secs(120))?;
     engine.repo.recover()?;
     sweep_temp_files(&engine.cfg.projects_dir(), 0);
     backup::prune(&engine.cfg.backups_dir(), backup::MAX_AGE, backup::MAX_TOTAL_BYTES);

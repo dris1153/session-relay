@@ -2,8 +2,8 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "../../components/button";
 import { ErrorNote, OnboardingCard } from "../../components/onboarding-card";
-import { errorText, setLanguage, t, useLanguage } from "../../lib/i18n";
-import { api, errorCode, type AppState, type AuthChanged, type StorageCheck } from "../../lib/tauri-commands";
+import { currentLanguage, errorText, setLanguage, t, useLanguage } from "../../lib/i18n";
+import { api, errorCode, type AppState, type AuthChanged, type StorageCheck, type User } from "../../lib/tauri-commands";
 import { StepGitMissing, StepNotConfigured } from "./step-blocked";
 import { StepGithubLogin } from "./step-github-login";
 import { StepMachineAndRoots } from "./step-machine-and-roots";
@@ -19,10 +19,13 @@ type View =
   | { kind: "storage"; check: StorageCheck }
   | { kind: "passphrase"; check: StorageCheck }
   | { kind: "machine"; app: AppState; check: StorageCheck }
-  | { kind: "ready"; check: StorageCheck };
+  | { kind: "ready"; user: User | null };
 
-/** Routes to the first unmet precondition, re-evaluated after every step and on `auth-changed`. */
-export function OnboardingFlow({ ready }: { ready: (check: StorageCheck, signOut: () => void) => React.ReactNode }) {
+const SIGN_IN_AGAIN = new Set(["not_logged_in", "auth_rejected"]);
+
+/** Routes to the first unmet precondition, re-evaluated after every step, on `auth-changed`
+ * and on `storage-changed`. `recheck` lets the app ask again (e.g. a sync hit a changed store). */
+export function OnboardingFlow({ ready }: { ready: (user: User | null, signOut: () => void, recheck: () => void) => React.ReactNode }) {
   useLanguage();
   const [view, setView] = useState<View>({ kind: "loading" });
   const [busy, setBusy] = useState(false);
@@ -33,20 +36,34 @@ export function OnboardingFlow({ ready }: { ready: (check: StorageCheck, signOut
     const mine = ++generation.current;
     const show = (next: View) => mine === generation.current && setView(next);
     const login = (reason: string | null) => show({ kind: "login", failure: reason, attempt: mine });
+    const route = (check: StorageCheck) => {
+      if (check.state === "needs_new_key" || check.state === "needs_unlock") return show({ kind: "passphrase", check });
+      if (check.state !== "ready") return show({ kind: "storage", check });
+      show({ kind: "ready", user: check.user });
+    };
     setBusy(true);
     try {
       const app = await api.getAppState();
+      // First run: remember the language picked from the system locale, so the tray menu matches.
       if (app.language) setLanguage(app.language);
+      else api.saveSettings({ language: currentLanguage() }).catch(() => {});
       if (!app.git_ok) return show({ kind: "git", version: app.git_version });
       if (!app.has_client_id) return show({ kind: "not_configured" });
       if (!app.signed_in) return login(failure);
-      const check = await api.checkStorage();
-      if (check.state === "needs_new_key" || check.state === "needs_unlock") return show({ kind: "passphrase", check });
-      if (check.state !== "ready") return show({ kind: "storage", check });
-      show({ kind: "ready", check });
+      if (app.identity_unlocked) {
+        // The cached key is enough for the dashboard (also offline); storage is checked behind it.
+        if (mine === generation.current) setView((v) => (v.kind === "ready" ? v : { kind: "ready", user: null }));
+        try {
+          route(await api.checkStorage());
+        } catch (e) {
+          if (SIGN_IN_AGAIN.has(errorCode(e))) login(errorCode(e));
+        }
+        return;
+      }
+      route(await api.checkStorage());
     } catch (e) {
       const code = errorCode(e);
-      if (code === "not_logged_in" || code === "auth_rejected") return login(code);
+      if (SIGN_IN_AGAIN.has(code)) return login(code);
       show({ kind: "failed", code });
     } finally {
       if (mine === generation.current) setBusy(false);
@@ -55,13 +72,16 @@ export function OnboardingFlow({ ready }: { ready: (check: StorageCheck, signOut
 
   useEffect(() => {
     advance();
-    const unlisten = listen<AuthChanged>("auth-changed", (event) => {
-      // Approved: leave the "waiting for approval" card while storage is checked.
-      if (event.payload.signed_in) setView({ kind: "loading" });
-      advance(event.payload.reason);
-    });
+    const subscriptions = [
+      listen<AuthChanged>("auth-changed", (event) => {
+        // Approved: leave the "waiting for approval" card while storage is checked.
+        if (event.payload.signed_in) setView({ kind: "loading" });
+        advance(event.payload.reason);
+      }),
+      listen("storage-changed", () => advance()),
+    ];
     return () => {
-      unlisten.then((stop) => stop());
+      subscriptions.forEach((s) => s.then((stop) => stop()));
     };
   }, [advance]);
 
@@ -97,8 +117,8 @@ export function OnboardingFlow({ ready }: { ready: (check: StorageCheck, signOut
         />
       );
     case "machine":
-      return <StepMachineAndRoots app={view.app} onDone={() => setView({ kind: "ready", check: view.check })} />;
+      return <StepMachineAndRoots app={view.app} onDone={() => setView({ kind: "ready", user: view.check.user })} />;
     case "ready":
-      return <>{ready(view.check, signOut)}</>;
+      return <>{ready(view.user, signOut, () => advance())}</>;
   }
 }

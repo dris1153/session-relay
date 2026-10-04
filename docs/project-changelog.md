@@ -2,7 +2,7 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.3.0] — 2026-10-05
 
 ### Added
 - Recovery key: creating the storage key also creates a recovery key (shown once), stored as `keys/recovery.age`. On the unlock screen it unlocks the storage and sets a new passphrase.

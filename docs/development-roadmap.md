@@ -30,7 +30,7 @@ Target of the first release (v0.1.0): Windows, one GitHub account, save and rest
 
 - The app is named "Session Relay" and installs into its own folder; the installer moves 0.1–0.2 installs, their auto-save hooks and the start-with-Windows entry.
 
-## Passphrase recovery (unreleased)
+## v0.3.0 (released 2026-10-05)
 
 Recovery key, unlock with it, start over, change passphrase / new recovery key in Settings. Plan: `plans/261005-0320-forgotten-passphrase-recovery/`.
 

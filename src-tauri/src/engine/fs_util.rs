@@ -22,6 +22,14 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     std::fs::rename(&tmp, path).at(path)
 }
 
+/// Removes a directory tree; a missing one is fine.
+pub fn remove_dir(dir: &Path) -> Result<()> {
+    match std::fs::remove_dir_all(dir) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        other => other.at(dir),
+    }
+}
+
 pub fn mtime_ns(meta: &std::fs::Metadata) -> i64 {
     meta.modified()
         .ok()

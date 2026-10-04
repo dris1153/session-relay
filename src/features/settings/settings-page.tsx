@@ -7,6 +7,7 @@ import { ErrorNote } from "../../components/onboarding-card";
 import { TextField } from "../../components/text-field";
 import { errorText, setLanguage, t, useLanguage, type Language } from "../../lib/i18n";
 import { api, errorCode, type AppState } from "../../lib/tauri-commands";
+import { KeySettings } from "./key-settings";
 
 const REVOKE_URL = "https://github.com/settings/apps/authorizations";
 
@@ -87,6 +88,7 @@ export function SettingsPage({ onSignOut }: { onSignOut: () => void }) {
           <option value="en">{t("language.en")}</option>
         </select>
       </section>
+      <KeySettings />
       <section className="flex max-w-[560px] flex-col gap-3">
         <h2 className="text-caption font-medium uppercase tracking-wide text-pebble">{t("settings.storage")}</h2>
         {app.repo && (

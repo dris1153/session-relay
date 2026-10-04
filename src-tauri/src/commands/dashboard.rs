@@ -10,7 +10,8 @@ use super::{blocking, CmdResult};
 use crate::app_state::AppState;
 use crate::dashboard::{self, Dashboard, SaveAllItem};
 use crate::engine::activity::{self, Activity};
-use crate::engine::error::{Error, IoContext, Result};
+use crate::engine::error::Error;
+use crate::engine::fs_util::remove_dir;
 use crate::engine::lock::SyncLock;
 use crate::engine::overview;
 use crate::engine::project_identity::locate;
@@ -163,11 +164,4 @@ pub async fn clear_local_data(app: AppHandle, state: State<'_, Arc<AppState>>) -
         Ok(())
     })
     .await
-}
-
-fn remove_dir(dir: &std::path::Path) -> Result<()> {
-    match std::fs::remove_dir_all(dir) {
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        other => other.at(dir),
-    }
 }

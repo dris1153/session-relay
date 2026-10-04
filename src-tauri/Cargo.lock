@@ -4447,6 +4447,7 @@ dependencies = [
  "auto-launch",
  "blake3",
  "chrono",
+ "getrandom 0.3.4",
  "hex",
  "keyring-core",
  "log",

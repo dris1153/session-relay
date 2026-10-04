@@ -8,7 +8,7 @@ use super::context::MARKER_FILE;
 use super::crypto::Keys;
 use super::error::Result;
 use super::github_api::{self, User};
-use super::key_setup::{self, KeyFiles, StoreKeyState, IDENTITY_FILE};
+use super::key_setup::{self, KeyFiles, StoreKeyState, IDENTITY_FILE, RECOVERY_FILE};
 use super::secrets;
 use super::settings::{RepoRef, Settings};
 
@@ -86,5 +86,5 @@ pub fn check(app_dir: &Path, settings: &Settings) -> Result<StorageCheck> {
 fn remote_key_files(token: &str, repo: &RepoRef) -> Result<KeyFiles> {
     let root = github_api::root_names(token, repo)?;
     let read = |entry: &str, path: &str| if root.iter().any(|n| n == entry) { github_api::file(token, repo, path) } else { Ok(None) };
-    Ok(KeyFiles { marker: read(MARKER_FILE, MARKER_FILE)?, identity: read("keys", IDENTITY_FILE)?, root })
+    Ok(KeyFiles { marker: read(MARKER_FILE, MARKER_FILE)?, identity: read("keys", IDENTITY_FILE)?, recovery: read("keys", RECOVERY_FILE)?, root })
 }

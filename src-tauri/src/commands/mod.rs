@@ -1,4 +1,5 @@
 pub mod dashboard;
+pub mod key_recovery;
 pub mod session_tools;
 pub mod session_view;
 pub mod settings;

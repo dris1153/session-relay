@@ -4,9 +4,11 @@ use super::context::{marker_bytes, MARKER_FILE};
 use super::crypto::{unwrap_identity, wrap_identity, Keys};
 use super::error::{Error, Result};
 use super::fs_util::write_atomic;
+use super::recovery_code::RecoveryCode;
 use super::store_repo::StoreRepo;
 
 pub const IDENTITY_FILE: &str = "keys/identity.age";
+pub const RECOVERY_FILE: &str = "keys/recovery.age";
 const MIN_PASSPHRASE_SCORE: u8 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -26,6 +28,8 @@ pub struct KeyFiles {
     pub root: Vec<String>,
     pub marker: Option<Vec<u8>>,
     pub identity: Option<Vec<u8>>,
+    /// Absent in stores created before recovery keys existed.
+    pub recovery: Option<Vec<u8>>,
 }
 
 impl KeyFiles {
@@ -33,7 +37,7 @@ impl KeyFiles {
     pub fn from_store(store: &StoreRepo, sha: Option<&str>) -> Result<Self> {
         let Some(sha) = sha else { return Ok(Self::default()) };
         let root = store.ls_tree(sha, "")?.iter().filter_map(|line| line.split('\t').nth(1)).map(str::to_owned).collect();
-        Ok(Self { root, marker: store.show(sha, MARKER_FILE)?, identity: store.show(sha, IDENTITY_FILE)? })
+        Ok(Self { root, marker: store.show(sha, MARKER_FILE)?, identity: store.show(sha, IDENTITY_FILE)?, recovery: store.show(sha, RECOVERY_FILE)? })
     }
 }
 
@@ -57,9 +61,9 @@ pub fn check_strength(passphrase: &str) -> Result<()> {
     Ok(())
 }
 
-/// First machine: generates the identity and publishes it passphrase-wrapped. If another
-/// machine won the race, returns `KeyExists` without overwriting anything. Caller holds `SyncLock`.
-pub fn create_key(store: &StoreRepo, passphrase: &str) -> Result<Keys> {
+/// First machine: publishes the identity wrapped by the passphrase and by a recovery code
+/// (returned, shown once). `KeyExists` if another machine won the race. Caller holds `SyncLock`.
+pub fn create_key(store: &StoreRepo, passphrase: &str) -> Result<(Keys, RecoveryCode)> {
     check_strength(passphrase)?;
     store.recover()?;
     let sha = store.fetch()?;
@@ -69,17 +73,26 @@ pub fn create_key(store: &StoreRepo, passphrase: &str) -> Result<Keys> {
         StoreKeyState::Foreign => return Err(Error::Invalid("the repository has content that is not a session-relay store".into())),
     }
     let keys = Keys::generate();
-    let wrapped = wrap_identity(&keys, passphrase)?;
-    store.prepare_worktree(sha.as_deref(), &["/*".to_string()])?;
-    let root = store.dir();
-    write_atomic(&root.join(MARKER_FILE), &marker_bytes(&keys))?;
-    write_atomic(&root.join(".gitattributes"), b"* -text -diff\n")?;
-    write_atomic(&root.join(IDENTITY_FILE), &wrapped)?;
-    let commit = store.snapshot_commit()?;
-    match store.push_lease(&commit, sha.as_deref()) {
+    let code = RecoveryCode::generate()?;
+    match publish_key_files(store, sha.as_deref(), sha.as_deref(), &keys, passphrase, &code) {
         Err(Error::LeaseRejected) => Err(Error::KeyExists),
-        other => other.map(|()| keys),
+        other => other.map(|()| (keys, code)),
     }
+}
+
+/// One orphan snapshot holding the marker and both wraps of `keys`. The worktree starts from
+/// `from` (anything in it is kept) and the push is leased on `lease`. Caller holds `SyncLock`.
+pub(super) fn publish_key_files(store: &StoreRepo, from: Option<&str>, lease: Option<&str>, keys: &Keys, passphrase: &str, code: &RecoveryCode) -> Result<()> {
+    let identity = wrap_identity(keys, passphrase)?;
+    let recovery = wrap_identity(keys, code.canonical())?;
+    store.prepare_worktree(from, &["/*".to_string()])?;
+    let root = store.dir();
+    write_atomic(&root.join(MARKER_FILE), &marker_bytes(keys))?;
+    write_atomic(&root.join(".gitattributes"), b"* -text -diff\n")?;
+    write_atomic(&root.join(IDENTITY_FILE), &identity)?;
+    write_atomic(&root.join(RECOVERY_FILE), &recovery)?;
+    let commit = store.snapshot_commit()?;
+    store.push_lease(&commit, lease)
 }
 
 /// Other machines: unwraps the published identity and checks it matches the store marker.
@@ -105,7 +118,7 @@ mod tests {
     use super::*;
 
     fn files(root: &[&str], marker: Option<&Keys>, identity: Option<Vec<u8>>) -> KeyFiles {
-        KeyFiles { root: root.iter().map(|s| s.to_string()).collect(), marker: marker.map(marker_bytes), identity }
+        KeyFiles { root: root.iter().map(|s| s.to_string()).collect(), marker: marker.map(marker_bytes), identity, recovery: None }
     }
 
     #[test]

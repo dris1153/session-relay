@@ -54,6 +54,10 @@ pub enum Error {
     WeakPassphrase,
     #[error("the store already has a key")]
     KeyExists,
+    #[error("the recovery key is not a valid code")]
+    InvalidRecoveryCode,
+    #[error("the store has no recovery key")]
+    NoRecoveryKey,
     #[error("this build has no GitHub App configured")]
     NoClientId,
     #[error("invalid data: {0}")]
@@ -87,6 +91,8 @@ impl Error {
             Error::Secrets(_) => "secrets",
             Error::WeakPassphrase => "weak_passphrase",
             Error::KeyExists => "key_exists",
+            Error::InvalidRecoveryCode => "invalid_recovery_code",
+            Error::NoRecoveryKey => "no_recovery_key",
             Error::NoClientId => "no_client_id",
             Error::Invalid(_) => "invalid_data",
         }

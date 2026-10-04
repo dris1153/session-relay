@@ -30,7 +30,13 @@ Target of the first release (v0.1.0): Windows, one GitHub account, save and rest
 
 - The app is named "Session Relay" and installs into its own folder; the installer moves 0.1–0.2 installs, their auto-save hooks and the start-with-Windows entry.
 
+## Passphrase recovery (unreleased)
+
+Recovery key, unlock with it, start over, change passphrase / new recovery key in Settings. Plan: `plans/261005-0320-forgotten-passphrase-recovery/`.
+
 ## Deferred
+
+- Show in Settings whether the store has a recovery key (needs a REST read); rebuild the clone on a git error while rewriting key files.
 
 - Tray attention for projects that are not linked yet but have a checkout in the workspace folders (needs a scan per refresh).
 - A notification when an auto-save fails while the window is hidden (the tray dot covers it for now).

@@ -2,8 +2,10 @@ mod support;
 
 use std::process::Command;
 
+use session_relay_lib::engine::crypto::unwrap_identity;
 use session_relay_lib::engine::error::Error;
-use session_relay_lib::engine::key_setup::{self, KeyFiles, StoreKeyState, IDENTITY_FILE};
+use session_relay_lib::engine::key_setup::{self, KeyFiles, StoreKeyState, IDENTITY_FILE, RECOVERY_FILE};
+use session_relay_lib::engine::recovery_code::RecoveryCode;
 use session_relay_lib::engine::store_repo::StoreRepo;
 use session_relay_lib::engine::sync::SyncMode;
 use support::{bare_remote, identity, test_store, Machine};
@@ -27,7 +29,7 @@ fn first_machine_creates_second_unlocks_and_nobody_overwrites() {
     assert_eq!(state_of(&a), StoreKeyState::NeedsNewKey);
 
     assert!(matches!(key_setup::create_key(&a, "password1"), Err(Error::WeakPassphrase)));
-    let created = key_setup::create_key(&a, PASSPHRASE).unwrap();
+    let (created, _) = key_setup::create_key(&a, PASSPHRASE).unwrap();
     let head = a.remote_head().unwrap();
     // B arrives second: it must unlock the existing key, never mint a new one.
     assert!(matches!(key_setup::create_key(&b, PASSPHRASE), Err(Error::KeyExists)));
@@ -63,12 +65,50 @@ fn a_marker_without_key_or_data_can_be_keyed_again() {
     let sha = a.fetch().unwrap().unwrap();
     a.prepare_worktree(Some(&sha), &["/*".to_string()]).unwrap();
     std::fs::remove_file(a.dir().join(IDENTITY_FILE)).unwrap();
+    std::fs::remove_file(a.dir().join(RECOVERY_FILE)).unwrap();
     a.push_lease(&a.snapshot_commit().unwrap(), Some(&sha)).unwrap();
 
     let c = test_store(&tmp.path().join("C"), &url);
     assert_eq!(state_of(&c), StoreKeyState::NeedsNewKey);
-    let keys = key_setup::create_key(&c, PASSPHRASE).unwrap();
+    let (keys, _) = key_setup::create_key(&c, PASSPHRASE).unwrap();
     assert_eq!(key_setup::unlock_key(&files_of(&c), PASSPHRASE).unwrap().chunk_name(b"x"), keys.chunk_name(b"x"));
+}
+
+#[test]
+fn a_new_store_holds_a_recovery_wrap_of_the_same_identity() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = bare_remote(tmp.path());
+    let a = test_store(&tmp.path().join("A"), &url);
+    let (keys, code) = key_setup::create_key(&a, PASSPHRASE).unwrap();
+
+    let files = files_of(&a);
+    assert!(files.root.iter().any(|n| n == "keys"));
+    let by_code = unwrap_identity(files.recovery.as_deref().expect("keys/recovery.age"), code.canonical()).unwrap();
+    assert_eq!(by_code.chunk_name(b"x"), keys.chunk_name(b"x"));
+    // The grouped form a user copies is the same secret.
+    let typed = RecoveryCode::parse(&code.to_string().to_lowercase()).unwrap();
+    assert_eq!(unwrap_identity(files.recovery.as_deref().unwrap(), typed.canonical()).unwrap().chunk_name(b"x"), keys.chunk_name(b"x"));
+    // Neither secret opens the other's wrap.
+    assert!(matches!(unwrap_identity(files.recovery.as_deref().unwrap(), PASSPHRASE), Err(Error::Decrypt)));
+    assert!(matches!(unwrap_identity(files.identity.as_deref().unwrap(), code.canonical()), Err(Error::Decrypt)));
+}
+
+#[test]
+fn a_store_without_a_recovery_wrap_still_unlocks_by_passphrase() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = bare_remote(tmp.path());
+    let a = test_store(&tmp.path().join("A"), &url);
+    let (keys, _) = key_setup::create_key(&a, PASSPHRASE).unwrap();
+    // A store made before recovery keys existed has no keys/recovery.age.
+    let sha = a.fetch().unwrap().unwrap();
+    a.prepare_worktree(Some(&sha), &["/*".to_string()]).unwrap();
+    std::fs::remove_file(a.dir().join(RECOVERY_FILE)).unwrap();
+    a.push_lease(&a.snapshot_commit().unwrap(), Some(&sha)).unwrap();
+
+    let files = files_of(&a);
+    assert!(files.recovery.is_none());
+    assert_eq!(key_setup::store_key_state(&files), StoreKeyState::NeedsUnlock);
+    assert_eq!(key_setup::unlock_key(&files, PASSPHRASE).unwrap().chunk_name(b"x"), keys.chunk_name(b"x"));
 }
 
 #[test]

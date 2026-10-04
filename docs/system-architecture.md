@@ -28,6 +28,7 @@ A private GitHub repository owned by the user. Its `main` branch always holds **
 session-relay.json          plaintext marker: app, version, key_check (MAC proving which identity owns the store)
 .gitattributes              * -text -diff
 keys/identity.age           age identity, passphrase-wrapped (scrypt)
+keys/recovery.age           the same identity wrapped by the recovery key (absent in stores made before recovery keys)
 p/<project hash>/           one folder per project; the name is a keyed blake3 hash of (remote, subpath)
   manifest.age              sealed manifest (zstd + age, MAC over the body)
   c/<chunk hash>.zst.age    content chunks (zstd, then age); names are keyed hashes of the plaintext
@@ -85,7 +86,7 @@ Modes: `auto` (both directions, skip diverged), `push_only` (hook worker: never 
 
 ## Git
 
-- `GitEnv` runs git with `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=NUL`, no hooks, https only, `LC_ALL=C`, our exe as the only credential helper (`session-relay.exe git-credential get`, answers only `github.com` over https), pinned `GIT_DIR`, and timeouts. Transfers use `--progress` and are killed only after 120 s without output.
+- `GitEnv` runs git with `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL` pointing to an empty file (`empty-gitconfig`; Git for Windows 2.56 refuses `NUL`), no hooks, https only, `LC_ALL=C`, our exe as the only credential helper (`session-relay.exe git-credential get`, answers only `github.com` over https), pinned `GIT_DIR`, and timeouts. Transfers use `--progress` and are killed only after 120 s without output.
 - Errors are classified from stderr: credentials refused → `auth_rejected`, unreachable → `network`, everything else → `git_failed`. Only `git_failed` may rebuild the clone.
 - Manifests of a snapshot are read with one `git cat-file --batch`.
 - `git_clone.rs` is the exception: it clones a project repo with the user's own git configuration and credentials.
@@ -121,6 +122,13 @@ GUI: markers older than 15 min are finished by the watcher (with backoff); Quit 
 
 Hooks are registered in `<claude_home>/settings.json` (both events, one group each, backups kept, malformed files never written); the switch reads that file as the source of truth. The NSIS pre-uninstall hook runs `hook-uninstall`; the post-install hook runs `post-install`, which points hooks left on a vanished exe (an update into another folder) and an enabled start-with-Windows entry at the new exe.
 
+## Key recovery
+
+The identity never changes; only its wraps do (`engine/key_rewrap.rs`, `key_reset.rs`, `recovery_code.rs`). The recovery key is 160 random bits as 32 base32 characters (`ABCD-EFGH-…`), used as the scrypt passphrase of `keys/recovery.age`; it is shown once and never stored.
+
+- **Recover / change passphrase / new recovery key**: under `sync.lock`, fetch, push one orphan snapshot that differs only inside `keys/` (guard: every other root entry identical, lease on the fetched sha). Only the marker and `keys/` are checked out; `p/` stays in the index.
+- **Start over** (only for `NeedsUnlock`): under `sync.lock` read the remote head, then the key files, then `rebuild()` the clone and push a new snapshot with a new identity (marker, `.gitattributes`, both wraps), leased on that head. Afterwards `base/` and `backups/` (bound to the old key) are removed; links, pending markers and Claude's files stay. Another machine's next sync fails with `wrong_identity`, the app re-checks storage and shows the unlock screen.
+
 ## Session viewer
 
 `engine/transcript` parses a `<sid>.jsonl` (the local file, or the cloud copy decrypted in memory under `sync.lock` and expanded to this machine's paths; nothing is written). Records are shown in file order, deduplicated by uuid; assistant records of one API message are merged, tool results are paired to their call by id. The parent chain is only used to find the current branch: a typed prompt off that branch (a rewind) and everything under it is hidden. System records (hooks, reminders, IDE context, injected skill text) are marked `noisy`. The last two parsed sessions stay in memory (`TranscriptCache`, cleared with the engine) so details and reopening an unchanged file are instant.
@@ -133,7 +141,11 @@ Hooks are registered in `<claude_home>/settings.json` (both events, one group ea
 | `start_login` / `logout` | `LoginCode { user_code, verification_uri, expires_in }` / () |
 | `check_storage` | `StorageCheck { state: no_installation\|repo_missing\|repo_public\|repo_foreign\|needs_new_key\|needs_unlock\|ready, user, repo?, install_url, create_repo_url }` |
 | `passphrase_strength(passphrase)` | 0–4 |
-| `create_key(passphrase)` / `unlock_key(passphrase)` | () |
+| `create_key(passphrase)` | recovery key (grouped text, shown once) |
+| `unlock_key(passphrase)` | () |
+| `recover_key(recovery_key, passphrase)` | () — unlocks and sets the new passphrase |
+| `reset_store(passphrase)` | recovery key of the new store — deletes the cloud copy |
+| `change_passphrase(passphrase)` · `new_recovery_key` | () · recovery key (shown once) |
 | `save_settings(patch)` · `set_auto_save(enabled)` | `AppState` |
 | `list_projects(fetch)` · `local_projects` | `Dashboard { projects, unmanaged, secondary, errors, offline, fetched_at?, auto_save_failures }` · same or null before any snapshot |
 | `project_activity(key_hash)` | last 20 `Activity { ts, key_hash, source, action, result, pushed, pulled }` |

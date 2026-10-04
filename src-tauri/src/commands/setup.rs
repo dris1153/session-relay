@@ -122,7 +122,7 @@ pub async fn check_storage(state: State<'_, Arc<AppState>>) -> CmdResult<Storage
 }
 
 /// Runs the storage check and remembers the repo only once it is a usable (private, own) store.
-fn checked_repo(state: &AppState) -> crate::engine::error::Result<StorageCheck> {
+pub(super) fn checked_repo(state: &AppState) -> crate::engine::error::Result<StorageCheck> {
     let check = storage_check::check(&state.app_dir, &state.settings())?;
     if let (Some(repo), true) = (&check.repo, check.key_files.is_some()) {
         if state.settings().repo.as_ref() != Some(repo) {
@@ -139,7 +139,7 @@ pub fn passphrase_strength(passphrase: String) -> u8 {
 }
 
 #[tauri::command]
-pub async fn create_key(state: State<'_, Arc<AppState>>, passphrase: String) -> CmdResult<()> {
+pub async fn create_key(state: State<'_, Arc<AppState>>, passphrase: String) -> CmdResult<String> {
     let state = Arc::clone(&state);
     blocking(move || {
         let check = checked_repo(&state)?;
@@ -150,7 +150,9 @@ pub async fn create_key(state: State<'_, Arc<AppState>>, passphrase: String) -> 
         }
         let store = state.store_for(&state.repo()?);
         let _lock = SyncLock::acquire_within(&state.app_dir.join("sync.lock"), "key-setup", Duration::from_secs(30))?;
-        remember_key(&state, key_setup::create_key(&store, &passphrase)?)
+        let (keys, code) = key_setup::create_key(&store, &passphrase)?;
+        remember_key(&state, keys)?;
+        Ok(code.to_string())
     })
     .await
 }
@@ -159,15 +161,19 @@ pub async fn create_key(state: State<'_, Arc<AppState>>, passphrase: String) -> 
 pub async fn unlock_key(state: State<'_, Arc<AppState>>, passphrase: String) -> CmdResult<()> {
     let state = Arc::clone(&state);
     blocking(move || {
-        let check = checked_repo(&state)?;
-        let files = check.key_files.filter(|_| matches!(check.state, StorageState::NeedsUnlock | StorageState::Ready));
-        let files = files.ok_or_else(|| Error::Invalid("the storage repository has no key to unlock".into()))?;
+        let files = unlockable_files(checked_repo(&state)?)?;
         remember_key(&state, key_setup::unlock_key(&files, &passphrase)?)
     })
     .await
 }
 
-fn remember_key(state: &AppState, keys: Keys) -> crate::engine::error::Result<()> {
+/// The key files of a store that already has a key (what unlocking by passphrase or recovery key reads).
+pub(super) fn unlockable_files(check: StorageCheck) -> crate::engine::error::Result<key_setup::KeyFiles> {
+    let files = check.key_files.filter(|_| matches!(check.state, StorageState::NeedsUnlock | StorageState::Ready));
+    files.ok_or_else(|| Error::Invalid("the storage repository has no key to unlock".into()))
+}
+
+pub(super) fn remember_key(state: &AppState, keys: Keys) -> crate::engine::error::Result<()> {
     secrets::save_identity(&keys.identity_secret())?;
     state.install_engine(keys)
 }

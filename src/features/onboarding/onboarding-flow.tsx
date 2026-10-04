@@ -8,6 +8,7 @@ import { StepGitMissing, StepNotConfigured } from "./step-blocked";
 import { StepGithubLogin } from "./step-github-login";
 import { StepMachineAndRoots } from "./step-machine-and-roots";
 import { StepPassphrase } from "./step-passphrase";
+import { StepRecoveryKey } from "./step-recovery-key";
 import { StepStorageRepo } from "./step-storage-repo";
 
 type View =
@@ -18,6 +19,7 @@ type View =
   | { kind: "login"; failure: string | null; attempt: number }
   | { kind: "storage"; check: StorageCheck }
   | { kind: "passphrase"; check: StorageCheck }
+  | { kind: "recovery_key"; code: string; check: StorageCheck }
   | { kind: "machine"; app: AppState; check: StorageCheck }
   | { kind: "ready"; user: User | null };
 
@@ -34,7 +36,8 @@ export function OnboardingFlow({ ready }: { ready: (user: User | null, signOut: 
 
   const advance = useCallback(async (failure: string | null = null) => {
     const mine = ++generation.current;
-    const show = (next: View) => mine === generation.current && setView(next);
+    // The recovery key is shown once: a background re-check must not replace its screen.
+    const show = (next: View) => mine === generation.current && setView((v) => (v.kind === "recovery_key" ? v : next));
     const login = (reason: string | null) => show({ kind: "login", failure: reason, attempt: mine });
     const route = (check: StorageCheck) => {
       if (check.state === "needs_new_key" || check.state === "needs_unlock") return show({ kind: "passphrase", check });
@@ -52,7 +55,7 @@ export function OnboardingFlow({ ready }: { ready: (user: User | null, signOut: 
       if (!app.signed_in) return login(failure);
       if (app.identity_unlocked) {
         // The cached key is enough for the dashboard (also offline); storage is checked behind it.
-        if (mine === generation.current) setView((v) => (v.kind === "ready" ? v : { kind: "ready", user: null }));
+        if (mine === generation.current) setView((v) => (v.kind === "ready" || v.kind === "recovery_key" ? v : { kind: "ready", user: null }));
         try {
           route(await api.checkStorage());
         } catch (e) {
@@ -113,9 +116,14 @@ export function OnboardingFlow({ ready }: { ready: (user: User | null, signOut: 
         <StepPassphrase
           initialMode={view.check.state === "needs_new_key" ? "create" : "unlock"}
           repo={view.check.repo}
-          onDone={async () => setView({ kind: "machine", app: await api.getAppState(), check: { ...view.check, state: "ready" } })}
+          onDone={async (code) => {
+            const check: StorageCheck = { ...view.check, state: "ready" };
+            setView(code ? { kind: "recovery_key", code, check } : { kind: "machine", app: await api.getAppState(), check });
+          }}
         />
       );
+    case "recovery_key":
+      return <StepRecoveryKey code={view.code} onDone={async () => setView({ kind: "machine", app: await api.getAppState(), check: view.check })} />;
     case "machine":
       return <StepMachineAndRoots app={view.app} onDone={() => setView({ kind: "ready", user: view.check.user })} />;
     case "ready":

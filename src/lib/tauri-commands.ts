@@ -161,8 +161,16 @@ export const api = {
   logout: () => invoke<void>("logout"),
   checkStorage: () => invoke<StorageCheck>("check_storage"),
   passphraseStrength: (passphrase: string) => invoke<number>("passphrase_strength", { passphrase }),
-  createKey: (passphrase: string) => invoke<void>("create_key", { passphrase }),
+  /** Resolves to the recovery key (grouped text), shown to the user once. */
+  createKey: (passphrase: string) => invoke<string>("create_key", { passphrase }),
   unlockKey: (passphrase: string) => invoke<void>("unlock_key", { passphrase }),
+  /** Unlocks with the recovery key and sets a new passphrase. */
+  recoverKey: (recoveryKey: string, passphrase: string) => invoke<void>("recover_key", { recoveryKey, passphrase }),
+  changePassphrase: (passphrase: string) => invoke<void>("change_passphrase", { passphrase }),
+  /** Replaces the recovery key; resolves to the new one (shown once). */
+  newRecoveryKey: () => invoke<string>("new_recovery_key"),
+  /** Deletes the cloud copy and starts a new store; resolves to its recovery key. */
+  resetStore: (passphrase: string) => invoke<string>("reset_store", { passphrase }),
   saveSettings: (patch: SettingsPatch) => invoke<AppState>("save_settings", { patch }),
   setAutoSave: (enabled: boolean) => invoke<AppState>("set_auto_save", { enabled }),
   listProjects: (fetch: boolean) => invoke<Dashboard>("list_projects", { fetch }),

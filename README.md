@@ -45,7 +45,7 @@ Both `.env` values are public identifiers of your GitHub App; forks register the
 1. **Git check** — the app needs Git 2.35+.
 2. **Sign in to GitHub** with the code shown (device flow).
 3. **Storage** — create an empty private repository (default name `claude-sessions`) and install your GitHub App on that repository only. The app links to both pages.
-4. **Passphrase** — the first machine creates one (it must be strong); other machines unlock with the same passphrase. **Losing it means losing the data**; nobody can recover it.
+4. **Passphrase** — the first machine creates one (it must be strong); other machines unlock with the same passphrase. The app then shows a **recovery key** once: keep it with the passphrase (a password manager is fine). **Losing both means losing the cloud data**; nobody can recover it. If you only lose the passphrase, the recovery key unlocks and lets you set a new one.
 5. **This machine** — machine name, Claude data folder, workspace folders, start with Windows, auto-save.
 
 ## Everyday use
@@ -74,11 +74,12 @@ Claude reads hooks when a session starts: open a new session (or reload the VS C
 ## Security model
 
 - Everything leaving your machine is compressed (zstd) and then encrypted with [age](https://age-encryption.org) (x25519). File and project names in the repository are keyed hashes, so the repository shows only sizes and timing.
-- The age identity is stored in the repository wrapped by your passphrase (scrypt), as `keys/identity.age`. A strength check (zxcvbn score ≥ 3) applies when creating it.
+- The age identity is stored in the repository wrapped by your passphrase (scrypt), as `keys/identity.age`. A strength check (zxcvbn score ≥ 3) applies when creating it. The same identity is also wrapped by the recovery key (a random 160-bit code) as `keys/recovery.age`.
 - The GitHub App token only reaches the repositories the app is installed on (install it on the storage repository only). It expires after 8 hours and is refreshed automatically; the refresh token rotates.
 - Tokens and the unlocked identity are kept in Windows Credential Manager with local (non-roaming) persistence. **Any program running as your Windows user can read them, including commands Claude runs for you.** Signing out removes them; revoke the app at <https://github.com/settings/apps/authorizations>.
 - The app refuses public repositories and repositories with foreign content. It re-checks the repository daily and at start; if it became public, syncing stops, auto-save included.
-- There is no key rotation: to change the passphrase or identity, create a new repository and set up again.
+- Settings → Encryption changes the passphrase or creates a new recovery key (the old one stops working); the identity and your data stay as they are. There is no key rotation: the old passphrase still opens older snapshots that GitHub may keep. Anyone with the recovery key can open your data and set a new passphrase.
+- **Forgot the passphrase and have no recovery key?** On the unlock screen choose "Start over": it deletes the cloud copy in the same repository, creates a new key and recovery key, and the other machines unlock again with the new passphrase. Sessions on your machines are untouched; save them again afterwards.
 
 ## Where data lives
 

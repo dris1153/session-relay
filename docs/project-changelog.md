@@ -2,6 +2,16 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- Recovery key: creating the storage key also creates a recovery key (shown once), stored as `keys/recovery.age`. On the unlock screen it unlocks the storage and sets a new passphrase.
+- Settings → Encryption: change the passphrase, or create a new recovery key (also gives a store made before this version one).
+- "Start over" on the unlock screen for a forgotten passphrase without a recovery key: replaces the cloud copy with a new store and key in the same repository (typed confirmation); other machines unlock again with the new passphrase.
+
+### Fixed
+- Git for Windows 2.56 refused `GIT_CONFIG_GLOBAL=NUL`, which broke every git call; an empty config file is used instead.
+
 ## [0.2.1] — 2026-09-24
 
 ### Changed

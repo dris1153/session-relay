@@ -35,7 +35,7 @@ The onboarding screens walk through the rest:
 1. Sign in with the code shown by the app.
 2. Create an **empty private** repository named `claude-sessions` (the app links to a pre-filled form).
 3. Install your GitHub App and select **only** that repository.
-4. Choose a passphrase. It encrypts everything before it leaves your machine; **losing it means losing the data**.
+4. Choose a passphrase. It encrypts everything before it leaves your machine; **losing it means losing the data** unless you keep the recovery key the app shows next.
 
 Other machines only sign in and unlock with the same passphrase.
 

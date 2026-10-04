@@ -34,6 +34,18 @@ pub struct Output {
 }
 
 impl GitEnv {
+    /// An empty file hides the user's global config; `NUL` is refused by Git for Windows 2.56+.
+    fn empty_global_config(&self) -> PathBuf {
+        let path = self.hooks_dir.with_file_name("empty-gitconfig");
+        if !path.exists() {
+            if let Some(dir) = path.parent() {
+                let _ = std::fs::create_dir_all(dir);
+            }
+            let _ = std::fs::write(&path, b"");
+        }
+        path
+    }
+
     fn configure(&self, cmd: &mut Command) {
         for (key, _) in std::env::vars_os() {
             let k = key.to_string_lossy().to_ascii_uppercase();
@@ -64,7 +76,7 @@ impl GitEnv {
         // English messages: `failure()` classifies errors by their text.
         cmd.env("LC_ALL", "C")
             .env("GIT_CONFIG_NOSYSTEM", "1")
-            .env("GIT_CONFIG_GLOBAL", "NUL")
+            .env("GIT_CONFIG_GLOBAL", self.empty_global_config())
             .env("GIT_TERMINAL_PROMPT", "0")
             .env("GCM_INTERACTIVE", "never")
             .env("GIT_CONFIG_COUNT", config.len().to_string());

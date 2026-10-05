@@ -34,6 +34,10 @@ Target of the first release (v0.1.0): Windows, one GitHub account, save and rest
 
 Recovery key, unlock with it, start over, change passphrase / new recovery key in Settings. Plan: `plans/261005-0320-forgotten-passphrase-recovery/`.
 
+## v0.3.1 (released 2026-10-05)
+
+- Fixes 0.3.0, which shipped without the GitHub App slug; the build now fails on an invalid `SR_GITHUB_*` value.
+
 ## Deferred
 
 - Show in Settings whether the store has a recovery key (needs a REST read); rebuild the clone on a git error while rewriting key files.

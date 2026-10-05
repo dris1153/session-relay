@@ -4441,7 +4441,7 @@ dependencies = [
 
 [[package]]
 name = "session-relay"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "age",
  "auto-launch",

@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.1] — 2026-10-05
+
+### Fixed
+- 0.3.0 was built without the GitHub App slug (it had been set to the whole URL) and could not sign in: it showed "this build has no GitHub App configured". Use 0.3.1.
+- The build now fails with a clear message when `SR_GITHUB_CLIENT_ID` or `SR_GITHUB_APP_SLUG` is set but invalid, instead of a warning that is easy to miss.
+
 ## [0.3.0] — 2026-10-05
 
 ### Added

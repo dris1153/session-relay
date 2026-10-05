@@ -21,7 +21,8 @@ fn load_build_env() {
             .or_else(|| file.as_deref().and_then(|f| lookup(f, key)));
         match value {
             Some(v) if is_valid_value(&v) => println!("cargo:rustc-env={key}={v}"),
-            Some(_) => println!("cargo:warning={key} has invalid characters; expected letters, digits and '-'"),
+            // A wrong value must stop the build: a cargo warning is easy to miss and the app would ship unable to sign in.
+            Some(v) => panic!("{key}={v:?} is not valid: use only letters, digits and '-' (for the app slug, the last part of https://github.com/apps/<slug>, not the whole URL)"),
             None => println!("cargo:warning={key} is not set (see .env.example); GitHub login will be unavailable"),
         }
     }
